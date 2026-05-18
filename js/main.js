@@ -144,8 +144,8 @@ async function handleGenerate() {
     generateBtn.classList.add('generating');
     inputEl.value = '';
 
-    // Clear previous markdown card results initially
-    responseCard.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">Thinking...</div>';
+    // Hide previous response card content during query to keep layout clean
+    responseCard.innerHTML = '<div class="thinking-skeleton"></div>';
     responseCard.classList.remove('hidden');
 
     try {

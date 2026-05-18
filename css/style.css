@@ -962,3 +962,18 @@ select option:disabled {
 	margin: 8px auto !important;
 	display: block !important;
 }
+
+/* ─── Анимация скелетона загрузки (Skeleton Loading Pulse) ─── */
+.thinking-skeleton {
+	width: 100%;
+	height: 14px;
+	border-radius: 4px;
+	background: linear-gradient(90deg, rgba(167, 139, 250, 0.05) 25%, rgba(167, 139, 250, 0.15) 50%, rgba(167, 139, 250, 0.05) 75%);
+	background-size: 200% 100%;
+	animation: skeletonPulse 1.5s infinite linear;
+}
+
+@keyframes skeletonPulse {
+	0% { background-position: 200% 0; }
+	100% { background-position: -200% 0; }
+}
