@@ -861,3 +861,16 @@ select {
 .close-btn:hover {
 	color: var(--text-main) !important;
 }
+
+/* ─── Исправление отображения вариантов в выпадающем списке (CEF Dropdown Fix) ─── */
+
+select option,
+select optgroup {
+	background-color: #0d0f12 !important; /* Глубокий космический черный фон */
+	color: #f8fafc !important;            /* Яркий белый контрастный текст */
+}
+
+select option:disabled {
+	color: var(--text-muted) !important;  /* Приглушенный цвет для заблокированных моделей */
+	opacity: 0.5;
+}
