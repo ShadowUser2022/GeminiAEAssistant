@@ -29,6 +29,10 @@ body {
 	-webkit-font-smoothing: antialiased;
 }
 
+.hidden {
+	display: none !important;
+}
+
 .container {
 	display: flex;
 	flex-direction: column;
@@ -996,4 +1000,10 @@ select option:disabled {
 .send-btn.generating:hover {
 	background: rgba(239, 68, 68, 0.25) !important;
 	box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+/* Bulletproof hiding for empty context or preview strips */
+.context-chips-container:empty,
+.preview-strip:empty {
+	display: none !important;
 }

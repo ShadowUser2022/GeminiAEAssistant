@@ -247,7 +247,9 @@ function switchMode(mode) {
         document.getElementById('promptInput').placeholder = 'Formula: [Style], [Subject], [Background], no humans.\nE.g.: 3D fluid art, rainbow puddle, dark background, no humans';
         attachBtn.style.display = 'none';
         attachedFiles = [];
+        attachedContextItems = [];
         renderPreviews();
+        renderContextChips();
         document.getElementById('drawOptions').classList.remove('hidden');
         if (drawSubMode === 'element') {
             document.getElementById('chromaSelector').classList.remove('hidden');
