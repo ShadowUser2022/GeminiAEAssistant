@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>AI Assistant</title>
+	<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+	<!-- Drag and Drop Full Screen Overlay -->
+	<div id="dragOverlay" class="drag-overlay hidden">
+		<div class="drag-overlay-content">
+			<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M12 5v14M5 12h14"></path>
+			</svg>
+			<p>Drop elements here to bind as context reference</p>
+		</div>
+	</div>
+
+	<div class="container">
+		<!-- Header Mode Switches and Target Model selector -->
+		<div class="header-row">
+			<div class="mode-switch">
+				<button id="modeExecute" class="mode-btn active" title="Agent Mode">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+					</svg>
+					Agent
+				</button>
+				<button id="modeConsult" class="mode-btn" title="Ask Mode">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+					</svg>
+					Ask
+				</button>
+				<button id="modeDraw" class="mode-btn" title="Draw Mode">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"></path>
+						<path d="M12 8A4 4 0 1 0 12 16 4 4 0 1 0 12 8Z"></path>
+					</svg>
+					Draw
+				</button>
+			</div>
+
+			<!-- Иконка открытия логов в верхнем углу -->
+			<button id="toggleConsole" class="secondary-btn icon-only-btn" title="Logs">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<polyline points="4 17 10 11 4 5"></polyline>
+					<line x1="12" y1="19" x2="20" y2="19"></line>
+				</svg>
+			</button>
+		</div>
+
+		<!-- Выбор моделей вынесен под кнопки переключения режимов -->
+		<div class="model-row">
+			<div class="model-selection">
+				<select id="modelSelect"></select>
+			</div>
+		</div>
+
+		<!-- Draw specific modifiers (hidden by default) -->
+		<div id="drawOptions" class="draw-sub-modes hidden">
+			<button id="drawModeScene" class="sub-mode-btn active">🎬 Scene</button>
+			<button id="drawModeElement" class="sub-mode-btn">📦 Isolated Asset</button>
+		</div>
+
+		<!-- Chroma key color pills selector (hidden by default) -->
+		<div id="chromaSelector" class="chroma-selector-row hidden">
+			<span style="font-size: 10px; color: var(--text-muted);">Background:</span>
+			<button class="chroma-pill active" data-color="green" style="background:#00ff00;"></button>
+			<button class="chroma-pill" data-color="magenta" style="background:#ff00ff;"></button>
+			<button class="chroma-pill" data-color="blue" style="background:#0055ff;"></button>
+			<button class="chroma-pill" data-color="black" style="background:#000000; border:1px solid #333;"></button>
+			<button class="chroma-pill" data-color="white" style="background:#ffffff;"></button>
+		</div>
+
+		<!-- Dynamic Reference Chips Strip -->
+		<div id="contextChipsContainer" class="context-chips-container hidden"></div>
+
+		<!-- Paste/Attach Images Strip -->
+		<div id="previewContainer" class="preview-strip hidden"></div>
+
+		<!-- Input field with action buttons inside -->
+		<div class="input-wrapper">
+			<button id="attachBtn" class="action-icon-btn" title="Attach Image">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+					<circle cx="8.5" cy="8.5" r="1.5"></circle>
+					<polyline points="21 15 16 10 5 21"></polyline>
+				</svg>
+			</button>
+
+			<button id="injectContextBtn" class="action-icon-btn crosshair-btn" title="Bind AE Selection">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="10"></circle>
+					<line x1="22" y1="12" x2="18" y2="12"></line>
+					<line x1="6" y1="12" x2="2" y2="12"></line>
+					<line x1="12" y1="6" x2="12" y2="2"></line>
+					<line x1="12" y1="22" x2="12" y2="18"></line>
+				</svg>
+			</button>
+
+			<textarea id="promptInput" placeholder="E.g.: Create composition &quot;Intro&quot;, add a shape layer with a glowing red circle..."></textarea>
+			
+			<button id="generateBtn" class="send-btn" title="Generate & Run">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="22" y1="2" x2="11" y2="13"></line>
+					<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+				</svg>
+			</button>
+		</div>
+
+		<!-- Hidden file upload input -->
+		<input type="file" id="fileInput" multiple accept="image/*" style="display:none;" />
+
+		<!-- Output response card -->
+		<div id="responseCard" class="response-card hidden"></div>
+
+		<!-- Status footer with visual Context dashboard circles -->
+		<div class="status-section">
+			<div style="display: flex; align-items: center; gap: 8px;">
+				<span id="statusText">Ready.</span>
+				<span id="contextWarning" class="status-warning hidden">⚠️ context full</span>
+			</div>
+			
+			<div class="dash-indicators">
+				<div id="costDisplay" class="cost-tracker-text">Est. Cost: $0.000</div>
+				<svg width="16" height="16" viewBox="0 0 36 36" class="context-gauge" title="Context usage tracking">
+					<path class="gauge-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+					<path id="contextRing" class="gauge-ring normal" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+				</svg>
+			</div>
+		</div>
+	</div>
+
+	<!-- Fixed, выдвижной снизу Dev-ящик с логами -->
+	<div id="consoleContainer" class="collapsed">
+		<div class="console-header">
+			<span>Logs & Settings</span>
+			<button id="closeConsoleBtn" class="close-btn" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;">&times;</button>
+		</div>
+
+		<div class="console-actions-row">
+			<button id="clearBtn" class="secondary-btn small-btn">Clear</button>
+			<button id="resetCostBtn" class="secondary-btn small-btn">Reset Cost</button>
+		</div>
+
+		<!-- Dynamic API key parameters drawer configuration -->
+		<div class="settings-grid">
+			<div class="setting-field">
+				<label>Gemini API Key:</label>
+				<div class="input-with-eye">
+					<input type="password" id="geminiKeyInput" placeholder="Built-in Key active" />
+					<button id="toggleGeminiKey" class="eye-btn">👁️</button>
+				</div>
+			</div>
+			<div class="setting-field">
+				<label>Imagen API Key:</label>
+				<div class="input-with-eye">
+					<input type="password" id="imagenKeyInput" placeholder="Built-in Key active" />
+					<button id="toggleImagenKey" class="eye-btn">👁️</button>
+				</div>
+			</div>
+		</div>
+
+		<textarea id="consoleOutput" readonly placeholder="Logs will appear here..."></textarea>
+	</div>
+
+	<!-- SEQUENTIAL SCRIPT LOADER (Dependencies first, main orchestrator last) -->
+	<script src="js/CSInterface.js"></script>
+	<script src="js/config.js"></script>
+	<script src="js/ui/console.js"></script>
+	<script src="js/ui/renderer.js"></script>
+	<script src="js/ui/attachments.js"></script>
+	<script src="js/ui/modes.js"></script>
+	<script src="js/ui/selectionContext.js"></script>
+	<script src="js/ae/bridge.js"></script>
+	<script src="js/api/gemini.js"></script>
+	<script src="js/api/imageGen.js"></script>
+	<script src="js/main.js"></script>
+</body>
+
+</html>
