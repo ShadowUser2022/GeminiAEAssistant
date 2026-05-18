@@ -28,12 +28,81 @@
  * @returns {Promise<string>} The extracted text or code from the model response.
  * @throws  {Error}           On non-2xx HTTP responses or missing candidates.
  */
+/**
+ * Sends conversation context to Anthropic's Claude API and returns the response.
+ */
+async function fetchClaudeCode(selectedModel, isExecute, systemPrompt) {
+    var temperature = isExecute ? 0.1 : 0.7;
+
+    // Convert Gemini chat history format to Claude messages format
+    var messages = [];
+    chatHistory.forEach(function (msg) {
+        var role = msg.role === 'model' ? 'assistant' : 'user';
+        var text = (msg.parts && msg.parts[0] && msg.parts[0].text) || '';
+        if (text) {
+            messages.push({ role: role, content: text });
+        }
+    });
+
+    var payload = {
+        model: selectedModel,
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: messages,
+        temperature: temperature
+    };
+
+    var url = 'https://api.anthropic.com/v1/messages';
+    var response = await fetch(url, {
+        method:  'POST',
+        headers: {
+            'Content-Type':      'application/json',
+            'x-api-key':         CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        var errText = await response.text();
+        try {
+            var errData = JSON.parse(errText);
+            throw new Error((errData.error && errData.error.message) || 'Claude API error');
+        } catch (e) {
+            throw new Error('Claude API error: ' + response.statusText + ' (' + errText + ')');
+        }
+    }
+
+    var data = await response.json();
+    var textResult = (data.content && data.content[0] && data.content[0].text) || '';
+
+    if (isExecute) {
+        // Extract only the code inside the first ```javascript ... ``` block
+        var codeBlockMatch = textResult.match(/```(?:javascript|js|extendscript|jsx)?\s*([\s\S]*?)```/i);
+        if (codeBlockMatch) {
+            textResult = codeBlockMatch[1];
+        } else {
+            // Fallback: strip any loose fences manually
+            textResult = textResult.replace(/^```(javascript|js|extendscript|jsx)?\n?/mi, '');
+            textResult = textResult.replace(/```$/m, '');
+        }
+    }
+
+    return textResult.trim();
+}
+
 async function fetchGeminiCode() {
     var isExecute    = currentMode === 'execute';
     var systemPrompt = isExecute ? SYSTEM_PROMPT_EXECUTE : SYSTEM_PROMPT_CONSULT;
     var temperature  = isExecute ? 0.1 : 0.7;
 
     var selectedModel = document.getElementById('modelSelect').value;
+
+    // Route request to Claude API if the selected model is Claude
+    if (selectedModel.indexOf('claude-') === 0) {
+        return await fetchClaudeCode(selectedModel, isExecute, systemPrompt);
+    }
+
     var url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
               selectedModel + ':generateContent?key=' + GEMINI_API_KEY;
 

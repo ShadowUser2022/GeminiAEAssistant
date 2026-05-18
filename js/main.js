@@ -99,6 +99,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Reload hotkeys listener (F5, Cmd+R, Ctrl+R)
+    window.addEventListener('keydown', function (e) {
+        if (e.key === 'F5' || ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R' || e.keyCode === 82))) {
+            e.preventDefault();
+            window.location.reload(true);
+        }
+    });
+
     logToConsole('Initialization finished. Assistant stands ready.');
 });
 

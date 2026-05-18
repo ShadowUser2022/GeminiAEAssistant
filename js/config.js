@@ -16,16 +16,19 @@ var IMAGE_CONTEXT_WEIGHT  = 4000;
 // ─── API Keys Initial State ───────────────────────────────────────────────────
 var GEMINI_API_KEY = localStorage.getItem('gemini_api_key') || '';
 var IMAGEN_API_KEY = localStorage.getItem('imagen_api_key') || '';
+var CLAUDE_API_KEY = localStorage.getItem('claude_api_key') || '';
 
 // ─── Model Selections ──────────────────────────────────────────────────────────
 var TEXT_FREE_MODELS = [
-    { id: 'gemini-2.5-flash-lite', name: 'Gemini Flash Lite' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini Flash Lite', provider: 'gemini' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' }
 ];
 
 var TEXT_PAID_MODELS = [
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Preview)' }
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'gemini' },
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Preview)', provider: 'gemini' },
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'claude' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'claude' }
 ];
 
 var IMAGE_FREE_MODELS = [

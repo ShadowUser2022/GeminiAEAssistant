@@ -155,18 +155,21 @@ function updateSessionCost(modelId, promptTokens, candidatesTokens, imageCount) 
  * Initializes the API Keys entry UI and the Session Cost tracker inside the Developer Console.
  */
 function initApiKeysSettings() {
-    var geminiInput = document.getElementById('geminiKeyInput');
-    var imagenInput = document.getElementById('imagenKeyInput');
+    var geminiInput  = document.getElementById('geminiKeyInput');
+    var imagenInput  = document.getElementById('imagenKeyInput');
+    var claudeInput  = document.getElementById('claudeKeyInput');
     var toggleGemini = document.getElementById('toggleGeminiKey');
     var toggleImagen = document.getElementById('toggleImagenKey');
-    var costDisplay = document.getElementById('costDisplay');
+    var toggleClaude = document.getElementById('toggleClaudeKey');
+    var costDisplay  = document.getElementById('costDisplay');
     var resetCostBtn = document.getElementById('resetCostBtn');
 
-    if (!geminiInput || !imagenInput) return;
+    if (!geminiInput || !imagenInput || !claudeInput) return;
 
     // Load initial values (default to empty if none in localStorage)
     geminiInput.value = localStorage.getItem('gemini_api_key') || '';
     imagenInput.value = localStorage.getItem('imagen_api_key') || '';
+    claudeInput.value = localStorage.getItem('claude_api_key') || '';
 
     // Typing listener for Gemini Key
     geminiInput.addEventListener('input', function () {
@@ -198,6 +201,21 @@ function initApiKeysSettings() {
         }
     });
 
+    // Typing listener for Claude Key
+    claudeInput.addEventListener('input', function () {
+        var val = claudeInput.value.trim();
+        if (val) {
+            localStorage.setItem('claude_api_key', val);
+            CLAUDE_API_KEY = val;
+        } else {
+            localStorage.removeItem('claude_api_key');
+            CLAUDE_API_KEY = '';
+        }
+        if (typeof updateModelDropdown === 'function') {
+            updateModelDropdown(currentMode);
+        }
+    });
+
     // Helper to toggle visibility
     function toggleVisibility(inputEl, btnEl) {
         var isPassword = inputEl.type === 'password';
@@ -218,6 +236,12 @@ function initApiKeysSettings() {
     if (toggleImagen) {
         toggleImagen.addEventListener('click', function () {
             toggleVisibility(imagenInput, toggleImagen);
+        });
+    }
+
+    if (toggleClaude) {
+        toggleClaude.addEventListener('click', function () {
+            toggleVisibility(claudeInput, toggleClaude);
         });
     }
 

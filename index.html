@@ -43,11 +43,11 @@
 				</button>
 			</div>
 
-			<!-- Иконка открытия логов в верхнем углу -->
-			<button id="toggleConsole" class="secondary-btn icon-only-btn" title="Logs">
+			<!-- Иконка открытия настроек в верхнем углу (Шестеренка) -->
+			<button id="toggleConsole" class="secondary-btn icon-only-btn" title="Settings & Logs">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<polyline points="4 17 10 11 4 5"></polyline>
-					<line x1="12" y1="19" x2="20" y2="19"></line>
+					<circle cx="12" cy="12" r="3"></circle>
+					<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
 				</svg>
 			</button>
 		</div>
@@ -151,15 +151,22 @@
 			<div class="setting-field">
 				<label>Gemini API Key:</label>
 				<div class="input-with-eye">
-					<input type="password" id="geminiKeyInput" placeholder="Built-in Key active" />
+					<input type="password" id="geminiKeyInput" placeholder="Enter Gemini Key" />
 					<button id="toggleGeminiKey" class="eye-btn">👁️</button>
 				</div>
 			</div>
 			<div class="setting-field">
 				<label>Imagen API Key:</label>
 				<div class="input-with-eye">
-					<input type="password" id="imagenKeyInput" placeholder="Built-in Key active" />
+					<input type="password" id="imagenKeyInput" placeholder="Enter Imagen Key" />
 					<button id="toggleImagenKey" class="eye-btn">👁️</button>
+				</div>
+			</div>
+			<div class="setting-field">
+				<label>Claude API Key:</label>
+				<div class="input-with-eye">
+					<input type="password" id="claudeKeyInput" placeholder="Enter Claude Key" />
+					<button id="toggleClaudeKey" class="eye-btn">👁️</button>
 				</div>
 			</div>
 		</div>

@@ -115,7 +115,15 @@ function updateModelDropdown(mode) {
         TEXT_PAID_MODELS.forEach(function (model) {
             var opt   = document.createElement('option');
             opt.value = model.id;
-            if (googleBillingStatus === 'inactive') {
+
+            var isLocked = false;
+            if (model.provider === 'claude') {
+                isLocked = !CLAUDE_API_KEY;
+            } else {
+                isLocked = (googleBillingStatus === 'inactive' && !GEMINI_API_KEY);
+            }
+
+            if (isLocked) {
                 opt.textContent = model.name + ' (Locked ⚠️)';
                 opt.disabled    = true;
             } else {
