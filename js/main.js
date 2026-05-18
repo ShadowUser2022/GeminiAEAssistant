@@ -171,13 +171,13 @@ async function handleGenerate() {
     activeAbortController = new AbortController();
     var isSuccess = false;
 
-    // Auto-timeout after 30 seconds
+    // Auto-timeout after 5 minutes (300 seconds)
     var timeoutId = setTimeout(function () {
         if (isGenerating && activeAbortController) {
-            logToConsole('Request timed out after 30 seconds. Aborting.');
+            logToConsole('Request timed out after 5 minutes. Aborting.');
             activeAbortController.abort();
         }
-    }, 30000);
+    }, 300000);
 
     try {
         // Compile selection context information as a prompt header block
