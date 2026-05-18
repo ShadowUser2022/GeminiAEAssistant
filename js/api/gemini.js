@@ -31,7 +31,7 @@
 /**
  * Sends conversation context to Anthropic's Claude API and returns the response.
  */
-async function fetchClaudeCode(selectedModel, isExecute, systemPrompt) {
+async function fetchClaudeCode(selectedModel, isExecute, systemPrompt, signal) {
     var temperature = isExecute ? 0.1 : 0.7;
 
     // Convert Gemini chat history format to Claude messages format
@@ -60,7 +60,8 @@ async function fetchClaudeCode(selectedModel, isExecute, systemPrompt) {
             'x-api-key':         CLAUDE_API_KEY,
             'anthropic-version': '2023-06-01'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: signal
     });
 
     if (!response.ok) {
@@ -91,7 +92,7 @@ async function fetchClaudeCode(selectedModel, isExecute, systemPrompt) {
     return textResult.trim();
 }
 
-async function fetchGeminiCode() {
+async function fetchGeminiCode(signal) {
     var isExecute    = currentMode === 'execute';
     var systemPrompt = isExecute ? SYSTEM_PROMPT_EXECUTE : SYSTEM_PROMPT_CONSULT;
     var temperature  = isExecute ? 0.1 : 0.7;
@@ -100,7 +101,7 @@ async function fetchGeminiCode() {
 
     // Route request to Claude API if the selected model is Claude
     if (selectedModel.indexOf('claude-') === 0) {
-        return await fetchClaudeCode(selectedModel, isExecute, systemPrompt);
+        return await fetchClaudeCode(selectedModel, isExecute, systemPrompt, signal);
     }
 
     var url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
@@ -115,7 +116,8 @@ async function fetchGeminiCode() {
     var response = await fetch(url, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload)
+        body:    JSON.stringify(payload),
+        signal:  signal
     });
 
     if (!response.ok) {

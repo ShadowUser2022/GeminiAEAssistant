@@ -984,3 +984,16 @@ select option:disabled {
 	0% { background-position: 200% 0; }
 	100% { background-position: -200% 0; }
 }
+
+/* ─── Стили для активной кнопки прерывания генерации (Stop Button) ─── */
+.send-btn.generating {
+	background: rgba(239, 68, 68, 0.15) !important;
+	color: #ef4444 !important;
+	opacity: 1 !important;
+	cursor: pointer !important;
+}
+
+.send-btn.generating:hover {
+	background: rgba(239, 68, 68, 0.25) !important;
+	box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}

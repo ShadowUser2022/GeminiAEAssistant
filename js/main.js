@@ -15,6 +15,7 @@ var chatHistory          = [];
 var attachedFiles        = [];
 var attachedContextItems = [];
 var isGenerating         = false;
+var activeAbortController = null;
 
 // ─── Startup Initialization ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
@@ -128,7 +129,13 @@ document.addEventListener('DOMContentLoaded', function () {
  * Renders user chats, packs inline images/context, and queries the correct model.
  */
 async function handleGenerate() {
-    if (isGenerating) return;
+    if (isGenerating) {
+        if (activeAbortController) {
+            activeAbortController.abort();
+            logToConsole('Generation aborted by user.');
+        }
+        return;
+    }
 
     var inputEl = document.getElementById('promptInput');
     var promptText = inputEl.value.trim();
@@ -151,13 +158,26 @@ async function handleGenerate() {
     var generateBtn = document.getElementById('generateBtn');
     var responseCard = document.getElementById('responseCard');
 
-    generateBtn.disabled = true;
+    // Do not disable the button; transform it into a red Stop button instead
     generateBtn.classList.add('generating');
+    generateBtn.title = 'Stop Generation';
+    generateBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect></svg>';
     inputEl.value = '';
 
     // Hide previous response card content during query to keep layout clean
     responseCard.innerHTML = '<div class="thinking-skeleton"></div>';
     responseCard.classList.remove('hidden');
+
+    activeAbortController = new AbortController();
+    var isSuccess = false;
+
+    // Auto-timeout after 30 seconds
+    var timeoutId = setTimeout(function () {
+        if (isGenerating && activeAbortController) {
+            logToConsole('Request timed out after 30 seconds. Aborting.');
+            activeAbortController.abort();
+        }
+    }, 30000);
 
     try {
         // Compile selection context information as a prompt header block
@@ -193,8 +213,8 @@ async function handleGenerate() {
         // Update context tracker circle dashboard
         updateContextTracker();
 
-        // 1. Fetch text or code from Gemini API client
-        var responseText = await fetchGeminiCode();
+        // 1. Fetch text or code from Gemini API client, passing the abort signal
+        var responseText = await fetchGeminiCode(activeAbortController.signal);
 
         // 2. Render Markdown formatted results
         responseCard.innerHTML = formatMarkdown(responseText);
@@ -213,20 +233,41 @@ async function handleGenerate() {
             setStatus('Ready.', false);
         }
 
-    } catch (err) {
-        logToConsole('Error: ' + err.message);
-        responseCard.innerHTML = '<div style="color:#ef4444;font-weight:600;padding:6px;">⚠️ Error: ' + err.message + '</div>';
-        setStatus('Error.', false);
-        saveToPersistentLog(promptText || "[Image/Context only]", 'Error: ' + err.message, 'API_ERROR');
-    } finally {
-        generateBtn.disabled = false;
-        generateBtn.classList.remove('generating');
-        isGenerating = false;
+        isSuccess = true;
 
-        // Reset attachments on successful execution
-        attachedFiles = [];
-        attachedContextItems = [];
-        renderPreviews();
-        renderContextChips();
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            logToConsole('Generation aborted successfully.');
+            responseCard.innerHTML = '<div style="color:#a78bfa;font-weight:600;padding:6px;">ℹ️ Generation stopped.</div>';
+            setStatus('Ready.', false);
+        } else {
+            logToConsole('Error: ' + err.message);
+            responseCard.innerHTML = '<div style="color:#ef4444;font-weight:600;padding:6px;">⚠️ Error: ' + err.message + '</div>';
+            setStatus('Error.', false);
+            saveToPersistentLog(promptText || "[Image/Context only]", 'Error: ' + err.message, 'API_ERROR');
+        }
+        
+        // Restore the original text so the user doesn't lose it
+        inputEl.value = promptText;
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+
+        // Restore send button visual state
+        generateBtn.classList.remove('generating');
+        generateBtn.title = 'Generate & Run';
+        generateBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
+        
+        isGenerating = false;
+        activeAbortController = null;
+
+        // Reset attachments ONLY on successful execution
+        if (isSuccess) {
+            attachedFiles = [];
+            attachedContextItems = [];
+            renderPreviews();
+            renderContextChips();
+        }
     }
 }
