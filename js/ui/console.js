@@ -69,6 +69,12 @@ function updateContextTracker() {
     var percentage = Math.min(Math.round((totalChars / CONTEXT_MAX_CHARS) * 100), 100);
     ring.setAttribute('stroke-dasharray', percentage + ', 100');
 
+    // Update dynamic tooltip title
+    var contextGauge = document.querySelector('.context-gauge');
+    if (contextGauge) {
+        contextGauge.setAttribute('title', 'New Task: Click to clear context (' + percentage + '% used)');
+    }
+
     ring.classList.remove('normal', 'warning', 'danger');
     if (percentage < 50) {
         ring.classList.add('normal');
@@ -118,7 +124,29 @@ function updateSessionCost(modelId, promptTokens, candidatesTokens, imageCount) 
     var currentCost = parseFloat(localStorage.getItem('gemini_ae_session_cost')) || 0.0;
     var addedCost = 0.0;
 
-    if (imageCount > 0) {
+    var isFreeModel = false;
+    if (modelId) {
+        if (typeof TEXT_FREE_MODELS !== 'undefined') {
+            for (var i = 0; i < TEXT_FREE_MODELS.length; i++) {
+                if (TEXT_FREE_MODELS[i].id === modelId) {
+                    isFreeModel = true;
+                    break;
+                }
+            }
+        }
+        if (!isFreeModel && typeof IMAGE_FREE_MODELS !== 'undefined') {
+            for (var j = 0; j < IMAGE_FREE_MODELS.length; j++) {
+                if (IMAGE_FREE_MODELS[j].id === modelId) {
+                    isFreeModel = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (isFreeModel) {
+        addedCost = 0.0;
+    } else if (imageCount > 0) {
         if (modelId && (modelId.indexOf('pollinations') !== -1 || modelId.indexOf('flux') !== -1)) {
             addedCost = 0.0; // Pollinations FLUX is free!
         } else {
@@ -264,6 +292,38 @@ function initApiKeysSettings() {
                 localStorage.setItem('gemini_ae_session_cost', '0.00000');
                 refreshCostDisplay();
                 logToConsole('Session cost tracker reset to $0.000');
+            }
+        });
+    }
+
+    // Bind Context Gauge (Round Button) click listener to clear conversation history for a fresh task
+    var contextGauge = document.querySelector('.context-gauge');
+    if (contextGauge) {
+        contextGauge.setAttribute('title', 'New Task: Click to clear conversation history and start fresh');
+        
+        contextGauge.addEventListener('click', function () {
+            var proceed = confirm("Очистить историю контекста для новой задачи?");
+            if (proceed) {
+                chatHistory = [];
+                if (typeof updateContextTracker === 'function') {
+                    updateContextTracker();
+                }
+                logToConsole('Context history cleared. Ready for a new task.');
+                
+                var responseCard = document.getElementById('responseCard');
+                if (responseCard) {
+                    responseCard.innerHTML = '';
+                    responseCard.classList.add('hidden');
+                }
+                
+                var promptInput = document.getElementById('promptInput');
+                if (promptInput) {
+                    promptInput.value = '';
+                }
+                
+                if (typeof setStatus === 'function') {
+                    setStatus('Ready. Context cleared.', false);
+                }
             }
         });
     }

@@ -789,6 +789,13 @@ select {
 	width: 16px;
 	height: 16px;
 	transform: rotate(-90deg);
+	cursor: pointer;
+	transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.context-gauge:hover {
+	transform: rotate(-90deg) scale(1.25);
+	filter: brightness(1.4);
 }
 
 .gauge-bg {
