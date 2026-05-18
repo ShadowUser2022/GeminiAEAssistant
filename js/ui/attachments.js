@@ -89,15 +89,12 @@ function processAndAttachImage(name, mimeType, rawBase64, onComplete) {
 // ─── File Input Handler ───────────────────────────────────────────────────────
 
 /**
- * Handles the `change` event of the hidden `<input type="file">` element.
- * Reads each selected image file as a Base64 data-URI and passes it to
- * `processAndAttachImage`. Resets the input so the same file can be re-selected.
+ * Batches and processes multiple image files for attachment.
+ * Useful for both standard file-input selects and drag-and-drop drop events.
  *
- * @param {Event} e - The native file-input change event.
+ * @param {File[]} files - List of HTML5 File objects to attach.
  */
-function handleFileSelect(e) {
-    var files = Array.from(e.target.files);
-
+function handleFilesAttach(files) {
     if (attachedFiles.length + files.length > MAX_ATTACHED_FILES) {
         logToConsole('Warning: attachment limit reached (' + MAX_ATTACHED_FILES + ').');
         alert('You can attach a maximum of ' + MAX_ATTACHED_FILES + ' files.');
@@ -116,7 +113,18 @@ function handleFileSelect(e) {
         };
         reader.readAsDataURL(file);
     });
+}
 
+/**
+ * Handles the `change` event of the hidden `<input type="file">` element.
+ * Reads each selected image file as a Base64 data-URI and passes it to
+ * `processAndAttachImage`. Resets the input so the same file can be re-selected.
+ *
+ * @param {Event} e - The native file-input change event.
+ */
+function handleFileSelect(e) {
+    var files = Array.from(e.target.files);
+    handleFilesAttach(files);
     // Reset so the same file can be chosen again
     e.target.value = '';
 }

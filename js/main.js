@@ -94,8 +94,19 @@ document.addEventListener('DOMContentLoaded', function () {
         dragOverlay.addEventListener('drop', function (e) {
             e.preventDefault();
             dragOverlay.classList.add('hidden');
-            logToConsole('Interacted Drag overlay dropped. Fetching selection context...');
-            injectSelectionContext();
+            
+            var droppedFiles = e.dataTransfer && e.dataTransfer.files;
+            if (droppedFiles && droppedFiles.length > 0) {
+                logToConsole('Files dropped onto panel. Attaching visual context...');
+                if (typeof handleFilesAttach === 'function') {
+                    handleFilesAttach(Array.from(droppedFiles));
+                } else {
+                    logToConsole('Error: handleFilesAttach is not defined.');
+                }
+            } else {
+                logToConsole('Interacted Drag overlay dropped. Fetching selection context...');
+                injectSelectionContext();
+            }
         });
     }
 
