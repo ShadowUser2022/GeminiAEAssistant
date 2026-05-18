@@ -146,6 +146,10 @@ function updateModelDropdown(mode) {
         var firstEnabled = allOptions.find(function (o) { return !o.disabled; });
         if (firstEnabled) modelSelect.value = firstEnabled.value;
     }
+
+    if (typeof toggleCostDisplayVisibility === 'function') {
+        toggleCostDisplayVisibility();
+    }
 }
 
 // ─── Billing Status Check ─────────────────────────────────────────────────────

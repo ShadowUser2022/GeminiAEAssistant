@@ -107,6 +107,42 @@ var MODEL_PRICING = {
     'gemini-2.5-flash-image': { flat: 0.003 }
 };
 
+function isModelFree(modelId) {
+    if (!modelId) return true;
+    var isFree = false;
+    if (typeof TEXT_FREE_MODELS !== 'undefined') {
+        for (var i = 0; i < TEXT_FREE_MODELS.length; i++) {
+            if (TEXT_FREE_MODELS[i].id === modelId) {
+                isFree = true;
+                break;
+            }
+        }
+    }
+    if (!isFree && typeof IMAGE_FREE_MODELS !== 'undefined') {
+        for (var j = 0; j < IMAGE_FREE_MODELS.length; j++) {
+            if (IMAGE_FREE_MODELS[j].id === modelId) {
+                isFree = true;
+                break;
+            }
+        }
+    }
+    return isFree;
+}
+
+function toggleCostDisplayVisibility() {
+    var costDisplay = document.getElementById('costDisplay');
+    if (!costDisplay) return;
+
+    var modelSelect = document.getElementById('modelSelect');
+    var selectedModel = modelSelect ? modelSelect.value : '';
+
+    if (isModelFree(selectedModel)) {
+        costDisplay.style.display = 'none';
+    } else {
+        costDisplay.style.display = 'block';
+    }
+}
+
 /**
  * Updates the session cost tracker based on token usage or image count.
  * Calculates cost using standard pricing and saves persistently to localStorage.
@@ -280,6 +316,7 @@ function initApiKeysSettings() {
             costDisplay.textContent = 'Est. Cost: $' + currentCost.toFixed(3);
             costDisplay.title = 'Total Session Cost: $' + currentCost.toFixed(5) + '\nClick Reset to clear.';
         }
+        toggleCostDisplayVisibility();
     }
 
     refreshCostDisplay();
@@ -326,5 +363,11 @@ function initApiKeysSettings() {
                 }
             }
         });
+    }
+
+    // Bind selection change to dynamically toggle cost visibility based on model type
+    var modelSelect = document.getElementById('modelSelect');
+    if (modelSelect) {
+        modelSelect.addEventListener('change', toggleCostDisplayVisibility);
     }
 }
