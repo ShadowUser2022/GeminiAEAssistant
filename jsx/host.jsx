@@ -155,16 +155,29 @@
                 "}";
                 
                 var selLayers = activeComp.selectedLayers;
-                if (selLayers.length > 0) {
+                if (selLayers && selLayers.length > 0) {
                     selectedLayersData = "[";
                     for (var i = 0; i < selLayers.length; i++) {
                         var layer = selLayers[i];
                         var layerType = "AVLayer";
-                        if (layer instanceof TextLayer) layerType = "TextLayer";
-                        else if (layer instanceof CameraLayer) layerType = "CameraLayer";
-                        else if (layer instanceof LightLayer) layerType = "LightLayer";
-                        else if (layer.source && layer.source instanceof SolidSource) layerType = "SolidLayer";
-                        else if (layer instanceof ShapeLayer) layerType = "ShapeLayer";
+                        
+                        if (layer instanceof TextLayer) {
+                            layerType = "TextLayer";
+                        } else if (layer instanceof CameraLayer) {
+                            layerType = "CameraLayer";
+                        } else if (layer instanceof LightLayer) {
+                            layerType = "LightLayer";
+                        } else if (layer instanceof ShapeLayer) {
+                            layerType = "ShapeLayer";
+                        } else if (layer.source) {
+                            try {
+                                if (layer.source.mainSource && (layer.source.mainSource.color || layer.source.mainSource.typeName === "Solid" || (layer.source.mainSource.toString && layer.source.mainSource.toString().indexOf("SolidSource") !== -1))) {
+                                    layerType = "SolidLayer";
+                                }
+                            } catch (e) {
+                                // Ignore and keep AVLayer
+                            }
+                        }
                         
                         selectedLayersData += "{" +
                             "\"name\":\"" + escapeString(layer.name) + "\"," +
@@ -177,9 +190,9 @@
                 }
             }
             
-            var selProjItems = app.project.selectedItems;
+            var selProjItems = app.project.selection;
             var selectedProjectItemsData = "[]";
-            if (selProjItems.length > 0) {
+            if (selProjItems && selProjItems.length > 0) {
                 selectedProjectItemsData = "[";
                 for (var j = 0; j < selProjItems.length; j++) {
                     var item = selProjItems[j];
