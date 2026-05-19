@@ -113,7 +113,18 @@ async function handleTelegramMessage(message) {
     var chatId = message.chat.id.toString().trim();
     var targetChatId = telegramChatId.trim();
 
-    // STRICT SECURITY CHECK: Reject messages from any other chat/    // Parse commands (supporting both slash commands and keyboard buttons)
+    // STRICT SECURITY CHECK: Reject messages from any other chat/user ID
+    if (chatId !== targetChatId) {
+        logToConsole(`Unauthorized access attempt blocked from Chat ID: ${chatId}`);
+        return;
+    }
+
+    var text = message.text ? message.text.trim() : '';
+    if (!text) return;
+
+    logToConsole(`Telegram command received: "${text}"`);
+
+    // Parse commands (supporting both slash commands and keyboard buttons)
     if (text.startsWith('/start') || text.startsWith('/help') || text === 'ℹ️ Помощь') {
         tgSessionMode = 'default';
         var helpMsg = "🤖 *After Effects Remote Control* 🚀\n\n" +
