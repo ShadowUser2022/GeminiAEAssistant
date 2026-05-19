@@ -103,11 +103,49 @@ function formatMarkdown(text) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-    // 2. Fenced code blocks → styled container with Copy button
+    // 2. Fenced code blocks → styled container inside a details accordion with Copy button
     html = html.replace(/```(?:javascript|js|extendscript|jsx)?\s*([\s\S]*?)```/gi, function (match, code) {
         var trimmedCode = code.trim();
         var base64Code  = btoa(unescape(encodeURIComponent(trimmedCode)));
-        return '<div class="code-block-container">\n' +
+        
+        // Extract comment lines at the beginning of code block to form the Action Plan list
+        var planItems = [];
+        var lines = trimmedCode.split('\n');
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (line.indexOf('//') === 0) {
+                var comment = line.substring(2).trim();
+                // Skip cosmetic separators or empty comments
+                if (comment && comment.indexOf('===') === -1 && comment.indexOf('---') === -1 && comment.indexOf('*') === -1) {
+                    planItems.push(comment);
+                }
+            } else if (line !== '') {
+                // Stop extracting comments once we hit actual code instructions
+                break;
+            }
+        }
+
+        var planHTML = '';
+        if (planItems.length > 0) {
+            planHTML = '<div class="action-plan-container">\n' +
+                '<strong style="color:var(--accent);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;">📋 Проделано:</strong>\n' +
+                '<ul style="margin:4px 0 0 0;padding-left:16px;color:#cbd5e1;">\n';
+            for (var j = 0; j < planItems.length; j++) {
+                planHTML += '<li style="margin-bottom:2px;">' + planItems[j] + '</li>\n';
+            }
+            planHTML += '</ul>\n</div>\n';
+        }
+
+        return planHTML +
+            '<details class="tech-details-accordion">\n' +
+            '<summary class="tech-details-summary">\n' +
+            '<span class="tech-summary-title">\n' +
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;">' +
+            '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>' +
+            '</svg>Техническая реализация (ExtendScript)</span>\n' +
+            '<span class="tech-summary-arrow">▼</span>\n' +
+            '</summary>\n' +
+            '<div class="code-block-container">\n' +
             '<button class="copy-code-btn" data-code="' + base64Code + '">' +
             '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
             'stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;">' +
@@ -115,7 +153,8 @@ function formatMarkdown(text) {
             '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' +
             '</svg>Copy</button>\n' +
             '<pre><code>' + trimmedCode + '</code></pre>\n' +
-            '</div>';
+            '</div>\n' +
+            '</details>';
     });
 
     // 3. Inline code
@@ -141,12 +180,16 @@ function formatMarkdown(text) {
             continue;
         }
 
-        // Pass through pre/code/container tags unchanged without wrapping them in <p>
+        // Pass through pre/code/container/accordion tags unchanged without wrapping them in <p>
         if (trimmed.indexOf('<pre>') === 0 || trimmed.indexOf('</pre>') === 0 ||
             trimmed.indexOf('<code>') === 0 || trimmed.indexOf('</code>') === 0 ||
             trimmed.indexOf('<div class="code-block-container">') === 0 ||
             trimmed.indexOf('</div>') === 0 ||
-            trimmed.indexOf('<button class="copy-code-btn"') === 0) {
+            trimmed.indexOf('<div class="action-plan') === 0 ||
+            trimmed.indexOf('<button class="copy-code-btn"') === 0 ||
+            trimmed.indexOf('<details') === 0 || trimmed.indexOf('</details>') === 0 ||
+            trimmed.indexOf('<summary') === 0 || trimmed.indexOf('</summary>') === 0 ||
+            trimmed.indexOf('<span class="tech-summary') === 0 || trimmed.indexOf('</span>') === 0) {
             if (inList) { processedLines.push('</ul>'); inList = false; }
             processedLines.push(line);
             continue;

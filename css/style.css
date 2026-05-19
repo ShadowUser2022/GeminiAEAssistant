@@ -1007,3 +1007,122 @@ select option:disabled {
 .preview-strip:empty {
 	display: none !important;
 }
+
+/* ─── Collapsible Accordion (details/summary) for ExtendScript Code ─── */
+details.tech-details-accordion {
+	margin: 8px 0;
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-md);
+	background: rgba(255, 255, 255, 0.01);
+	overflow: hidden;
+	transition: var(--transition);
+}
+
+details.tech-details-accordion[open] {
+	background: rgba(13, 15, 18, 0.3);
+	border-color: rgba(167, 139, 250, 0.35);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 8px rgba(167, 139, 250, 0.08);
+}
+
+details.tech-details-accordion summary {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 12px;
+	font-size: 10px;
+	font-weight: 500;
+	color: var(--text-muted);
+	cursor: pointer;
+	user-select: none;
+	list-style: none;
+	outline: none;
+	transition: var(--transition);
+}
+
+details.tech-details-accordion summary::-webkit-details-marker {
+	display: none;
+}
+
+details.tech-details-accordion summary:hover {
+	color: var(--text-main);
+	background: rgba(255, 255, 255, 0.03);
+}
+
+details.tech-details-accordion[open] summary {
+	border-bottom: 1px solid var(--border-color);
+	color: #a78bfa;
+	background: rgba(167, 139, 250, 0.04);
+}
+
+.tech-summary-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.tech-summary-arrow {
+	font-size: 8px;
+	transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	color: var(--text-muted);
+}
+
+details.tech-details-accordion[open] .tech-summary-arrow {
+	transform: rotate(180deg);
+	color: #a78bfa;
+}
+
+details.tech-details-accordion .code-block-container {
+	padding: 8px 12px;
+	background: rgba(0, 0, 0, 0.2);
+}
+
+/* Стили для Action Plan списка проделанной работы */
+.action-plan-container {
+	background: rgba(167, 139, 250, 0.02);
+	border: 1px dashed rgba(167, 139, 250, 0.15);
+	border-radius: var(--radius-md);
+	padding: 10px 12px;
+	margin-bottom: 8px;
+}
+
+/* ─── Стили для контейнера кода и кнопки копирования (Copy Button) ─── */
+.code-block-container {
+	position: relative;
+	margin: 8px 0;
+}
+
+.copy-code-btn {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: var(--radius-sm);
+	color: var(--text-muted);
+	font-family: 'Inter', sans-serif;
+	font-size: 9px;
+	padding: 4px 8px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	transition: var(--transition);
+	backdrop-filter: blur(4px);
+	z-index: 5;
+}
+
+.copy-code-btn:hover {
+	background: rgba(167, 139, 250, 0.15);
+	border-color: rgba(167, 139, 250, 0.35);
+	color: #ffffff;
+	box-shadow: 0 0 6px rgba(167, 139, 250, 0.2);
+}
+
+.copy-code-btn:active {
+	transform: scale(0.95);
+}
+
+.copy-code-btn svg {
+	stroke: currentColor;
+	transition: var(--transition);
+}

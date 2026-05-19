@@ -132,12 +132,46 @@ async function handleTelegramMessage(message) {
                       "🎬 `/render` — Рендеринг активного состава в видеофайл\n" +
                       "❓ `/ask <вопрос>` — Задать вопрос ИИ без изменения проекта\n" +
                       "⚡️ `/run <промпт>` — Сгенерировать и запустить код (с авто-скриншотом)\n" +
+                      "⚙️ `/model` — Выбрать активную модель ИИ\n" +
                       "📖 `Инструкция` — Подробное интерактивное руководство по боту\n\n" +
                       "⚠️ *Настройка:* Если не работает скриншот, убедитесь, что на таймлайне открыта активная композиция и в AE в меню *Preferences -> Scripting & Expressions* включена галочка *Allow Scripts to Write Files*!";
         await sendTelegramMessage(helpMsg);
     } 
     else if (text.startsWith('/status') || text === '📊 Статус') {
         await handleStatusCommand();
+    } 
+    else if (text.startsWith('/model') || text === '⚙️ Сменить модель') {
+        var parts = text.split(' ');
+        if (parts.length === 1) {
+            var modelMenu = "⚙️ *Выбор активной модели ИИ*\n\n" +
+                            "Кликните на команду ниже, чтобы мгновенно переключить модель на компьютере:\n\n" +
+                            "🟢 *Бесплатные (Flash):*\n" +
+                            "👉 `/model gemini-2.5-flash-lite` — Gemini Flash Lite (очень быстрая)\n" +
+                            "👉 `/model gemini-2.5-flash` — Gemini 2.5 Flash (универсальная)\n\n" +
+                            "🔵 *Платные (Pro / Claude):*\n" +
+                            "👉 `/model gemini-2.5-pro` — Gemini 2.5 Pro (для сложных задач)\n" +
+                            "👉 `/model gemini-3.1-pro-preview` — Gemini 3.1 Pro (Preview)\n" +
+                            "👉 `/model claude-3-5-sonnet-20241022` — Claude 3.5 Sonnet (лучшая для кода)\n" +
+                            "👉 `/model claude-3-5-haiku-20241022` — Claude 3.5 Haiku (быстрая Anthropic)";
+            await sendTelegramMessage(modelMenu);
+        } else {
+            var requestedId = parts[1].trim();
+            var allTextModels = TEXT_FREE_MODELS.concat(TEXT_PAID_MODELS);
+            var matchedModel = allTextModels.find(function(m) { return m.id === requestedId; });
+
+            if (matchedModel) {
+                var modelSelect = document.getElementById('modelSelect');
+                if (modelSelect) {
+                    modelSelect.value = requestedId;
+                    modelSelect.dispatchEvent(new Event('change'));
+                    await sendTelegramMessage(`✅ Активная модель ИИ успешно изменена на *${matchedModel.name}*!`);
+                } else {
+                    await sendTelegramMessage("❌ Ошибка: Не удалось найти селектор моделей в интерфейсе After Effects.");
+                }
+            } else {
+                await sendTelegramMessage("❌ Неверный ID модели. Используйте список из команды `/model`.");
+            }
+        }
     } 
     else if (text.startsWith('/screen') || text.startsWith('/screenshot') || text === '📸 Скриншот') {
         await handleScreenshotCommand();
@@ -377,7 +411,8 @@ async function handleRemotePromptCommand(promptText) {
         
         var responseCard = document.getElementById('responseCard');
         if (responseCard) {
-            responseCard.innerHTML = formatMarkdown(responseText);
+            var renderedText = (currentMode === 'execute') ? '```javascript\n' + responseText + '\n```' : responseText;
+            responseCard.innerHTML = formatMarkdown(renderedText);
             responseCard.classList.remove('hidden');
         }
 
@@ -429,7 +464,7 @@ async function sendTelegramMessage(text) {
                         [{"text": "📊 Статус"}, {"text": "📸 Скриншот"}],
                         [{"text": "🎬 Рендер"}, {"text": "ℹ️ Помощь"}],
                         [{"text": "❓ Задать вопрос"}, {"text": "⚡️ Запустить промпт"}],
-                        [{"text": "📖 Инструкция"}]
+                        [{"text": "⚙️ Сменить модель"}, {"text": "📖 Инструкция"}]
                     ],
                     resize_keyboard: true
                 }

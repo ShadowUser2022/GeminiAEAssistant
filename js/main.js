@@ -222,7 +222,8 @@ async function handleGenerate() {
         var responseText = await fetchGeminiCode(activeAbortController.signal);
 
         // 2. Render Markdown formatted results
-        responseCard.innerHTML = formatMarkdown(responseText);
+        var renderedText = (currentMode === 'execute') ? '```javascript\n' + responseText + '\n```' : responseText;
+        responseCard.innerHTML = formatMarkdown(renderedText);
 
         // 3. Save Assistant responses in history
         chatHistory.push({ role: 'model', parts: [{ text: responseText }] });
