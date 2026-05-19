@@ -111,11 +111,6 @@ function stopTelegramPolling() {
 async function pollTelegramUpdates() {
     if (!telegramToken || !telegramEnabled || isTelegramProcessing) return;
 
-    // If the browser reports offline, skip polling this cycle
-    if (navigator && navigator.onLine === false) {
-        return;
-    }
-
     isTelegramProcessing = true;
     var url = "https://api.telegram.org/bot" + telegramToken + "/getUpdates?offset=" + (lastTelegramUpdateId + 1) + "&timeout=2";
 
