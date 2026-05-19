@@ -414,6 +414,9 @@ function initApiKeysSettings() {
                     updateContextTracker();
                 }
                 logToConsole('Context history cleared. Ready for a new task.');
+                if (typeof showToast === 'function') {
+                    showToast('Сессия чата очищена');
+                }
                 
                 var responseCard = document.getElementById('responseCard');
                 if (responseCard) {

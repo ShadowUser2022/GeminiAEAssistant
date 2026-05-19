@@ -1126,3 +1126,60 @@ details.tech-details-accordion .code-block-container {
 	stroke: currentColor;
 	transition: var(--transition);
 }
+
+/* Диалоговое облачко с запросом пользователя на карточке ответа */
+.user-prompt-bubble {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	background: rgba(167, 139, 250, 0.04);
+	border-left: 2px solid var(--accent);
+	border-radius: var(--radius-sm);
+	padding: 8px 12px;
+	margin-bottom: 12px;
+	font-size: 11px;
+	color: #ffffff;
+}
+
+.user-prompt-bubble .prompt-icon {
+	color: var(--accent);
+	font-size: 12px;
+}
+
+.user-prompt-bubble .prompt-text {
+	color: #e2e8f0;
+	font-weight: 500;
+	opacity: 0.95;
+}
+
+/* ─── Premium Glassmorphic Toast Notification ─── */
+.toast-notification {
+	position: fixed;
+	bottom: 30px;
+	left: 50%;
+	transform: translateX(-50%) translateY(20px);
+	background: rgba(13, 15, 18, 0.85);
+	backdrop-filter: blur(8px);
+	border: 1px solid rgba(167, 139, 250, 0.25);
+	border-radius: var(--radius-sm);
+	color: #e2e8f0;
+	padding: 8px 14px;
+	font-size: 10px;
+	font-family: 'Inter', sans-serif;
+	display: flex;
+	align-items: center;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 10px rgba(167, 139, 250, 0.1);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	z-index: 9999;
+}
+
+.toast-notification.visible {
+	opacity: 1;
+	transform: translateX(-50%) translateY(0);
+}
+
+.toast-notification svg {
+	color: var(--accent);
+}

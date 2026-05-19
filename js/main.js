@@ -35,6 +35,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // 3. Initiate JSX Cache Hot-Reloading
     initHostJsxHotReload();
 
+    // 4. Show startup session notification
+    showToast('Начата новая сессия чата');
+
     // 4. Setup Key/UI Submit bindings
     var promptInput = document.getElementById('promptInput');
     var generateBtn = document.getElementById('generateBtn');
@@ -223,7 +226,18 @@ async function handleGenerate() {
 
         // 2. Render Markdown formatted results
         var renderedText = (currentMode === 'execute') ? '```javascript\n' + responseText + '\n```' : responseText;
-        responseCard.innerHTML = formatMarkdown(renderedText);
+        var responseHTML = formatMarkdown(renderedText);
+        
+        // Создаем диалоговое облачко с запросом пользователя
+        var promptBubble = '<div class="user-prompt-bubble">' +
+            '<span class="prompt-icon" style="display:flex;align-items:center;">' +
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;">' +
+            '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' +
+            '</svg></span>' +
+            '<span class="prompt-text">' + (promptText || "Изображение/Контекст") + '</span>' +
+            '</div>';
+        
+        responseCard.innerHTML = promptBubble + responseHTML;
 
         // 3. Save Assistant responses in history
         chatHistory.push({ role: 'model', parts: [{ text: responseText }] });
@@ -276,4 +290,39 @@ async function handleGenerate() {
             renderContextChips();
         }
     }
+}
+
+/**
+ * Создает и плавно отображает исчезающее системное уведомление.
+ * @param {string} message - Текст уведомления.
+ */
+function showToast(message) {
+    var toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    
+    // Минималистичная SVG иконка инфо-контура
+    toast.innerHTML = 
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:middle;display:inline-block;">' +
+        '<circle cx="12" cy="12" r="10"></circle>' +
+        '<line x1="12" y1="16" x2="12" y2="12"></line>' +
+        '<line x1="12" y1="8" x2="12.01" y2="8"></line>' +
+        '</svg>' +
+        '<span>' + message + '</span>';
+        
+    document.body.appendChild(toast);
+    
+    // Активируем анимацию появления через микро-тик
+    setTimeout(function() {
+        toast.classList.add('visible');
+    }, 50);
+    
+    // Плавно скрываем и удаляем из DOM через 2.5 секунды
+    setTimeout(function() {
+        toast.classList.remove('visible');
+        setTimeout(function() {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 2500);
 }

@@ -16,6 +16,7 @@ var telegramToken         = '';
 var telegramChatId        = '';
 var telegramEnabled       = false;
 var isTelegramProcessing  = false;
+var tgSessionMode         = 'default';
 
 // ─── Initialization & Core Engine ─────────────────────────────────────────────
 
@@ -112,24 +113,14 @@ async function handleTelegramMessage(message) {
     var chatId = message.chat.id.toString().trim();
     var targetChatId = telegramChatId.trim();
 
-    // STRICT SECURITY CHECK: Reject messages from any other chat/user ID
-    if (chatId !== targetChatId) {
-        logToConsole(`Unauthorized access attempt blocked from Chat ID: ${chatId}`);
-        return;
-    }
-
-    var text = message.text ? message.text.trim() : '';
-    if (!text) return;
-
-    logToConsole(`Telegram command received: "${text}"`);
-
-    // Parse commands (supporting both slash commands and keyboard buttons)
+    // STRICT SECURITY CHECK: Reject messages from any other chat/    // Parse commands (supporting both slash commands and keyboard buttons)
     if (text.startsWith('/start') || text.startsWith('/help') || text === 'ℹ️ Помощь') {
+        tgSessionMode = 'default';
         var helpMsg = "🤖 *After Effects Remote Control* 🚀\n\n" +
                       "Используйте кнопки меню ниже или вводите команды вручную:\n" +
                       "📊 `/status` — Характеристики active-проекта и композиции\n" +
                       "📸 `/screen` — Скриншот текущего кадра таймлайна\n" +
-                      "🎬 `/render` — Рендеринг активного состава в видеофайл\n" +
+                      "🎬 `/render` — Рендеринг active-проекта в видеофайл\n" +
                       "❓ `/ask <вопрос>` — Задать вопрос ИИ без изменения проекта\n" +
                       "⚡️ `/run <промпт>` — Сгенерировать и запустить код (с авто-скриншотом)\n" +
                       "⚙️ `/model` — Выбрать активную модель ИИ\n" +
@@ -138,9 +129,11 @@ async function handleTelegramMessage(message) {
         await sendTelegramMessage(helpMsg);
     } 
     else if (text.startsWith('/status') || text === '📊 Статус') {
+        tgSessionMode = 'default';
         await handleStatusCommand();
     } 
     else if (text.startsWith('/model') || text === '⚙️ Сменить модель') {
+        tgSessionMode = 'default';
         var parts = text.split(' ');
         if (parts.length === 1) {
             var modelMenu = "⚙️ *Выбор активной модели ИИ*\n\n" +
@@ -174,34 +167,41 @@ async function handleTelegramMessage(message) {
         }
     } 
     else if (text.startsWith('/screen') || text.startsWith('/screenshot') || text === '📸 Скриншот') {
+        tgSessionMode = 'default';
         await handleScreenshotCommand();
     } 
     else if (text.startsWith('/render') || text === '🎬 Рендер') {
+        tgSessionMode = 'default';
         await handleRenderCommand();
     } 
     else if (text === '❓ Задать вопрос') {
-        var askInstruction = "❓ *Задать вопрос ассистенту*\n\n" +
-                             "Введите ваш вопрос с префиксом `/ask`. Бот проанализирует контекст текущей композиции и ответит на него без внесения изменений в проект.\n\n" +
-                             "*Шаблон:* `/ask <ваш вопрос>`\n" +
-                             "_Пример:_ `/ask Какие слои есть в моей композиции?`";
+        tgSessionMode = 'ask';
+        var askInstruction = "❓ *Режим консультации активирован!*\n\n" +
+                             "Бот проанализирует контекст текущей композиции и ответит без изменения проекта.\n\n" +
+                             "👉 *Просто введите ваш вопрос прямо сейчас* (префикс `/ask` больше не нужен!):\n" +
+                             "_Пример: Какие слои есть в моей композиции?_";
         await sendTelegramMessage(askInstruction);
     }
     else if (text === '⚡️ Запустить промпт') {
-        var runInstruction = "⚡️ *Запустить ИИ промпт в After Effects*\n\n" +
-                             "Введите ваш промпт с префиксом `/run` для генерации и автоматического запуска ExtendScript кода прямо на таймлайне AE. Результат будет автоматически прислан вам в виде скриншота!\n\n" +
-                             "*Шаблон:* `/run <ваш промпт>`\n" +
-                             "_Пример:_ `/run Сделай плавную анимацию вращения для всех слоев`";
+        tgSessionMode = 'run';
+        var runInstruction = "⚡️ *Режим выполнения команд активирован!*\n\n" +
+                             "Бот сгенерирует ExtendScript-код, выполнит его в AE и автоматически пришлет скриншот результата.\n\n" +
+                             "👉 *Просто введите ваш запрос прямо сейчас* (префикс `/run` больше не нужен!):\n" +
+                             "_Пример: Создай три шейповых прямоугольника разного цвета_";
         await sendTelegramMessage(runInstruction);
     }
     else if (text.startsWith('/ask ')) {
+        tgSessionMode = 'ask';
         var questionText = text.substring(5).trim();
         await handleAskCommand(questionText);
     } 
     else if (text.startsWith('/run ')) {
+        tgSessionMode = 'run';
         var promptText = text.substring(5).trim();
         await handleRemotePromptCommand(promptText);
     } 
     else if (text === '📖 Инструкция' || text.startsWith('/guide')) {
+        tgSessionMode = 'default';
         var manualMsg = "📖 *Инструкция по работе с Gemini AE Assistant*\n\n" +
                         "Этот бот позволяет вам полностью контролировать After Effects с телефона, пока вы пьете кофе или находитесь в другой комнате!\n\n" +
                         "🔹 *1. Контроль проекта и прогресса*\n" +
@@ -210,15 +210,22 @@ async function handleTelegramMessage(message) {
                         "🔹 *2. Удаленный рендеринг*\n" +
                         "• Нажмите *🎬 Рендер*. Бот автоматически отправит активную композицию в очередь рендера After Effects, просчитает видео и пришлет вам готовый файл прямо в чат!\n\n" +
                         "🔹 *3. Креативная работа с ИИ*\n" +
-                        "• *❓ Задать вопрос:* нажмите кнопку, скопируйте шаблон и задайте вопрос. Например: `/ask Сколько слоев в композиции и как они называются?` ИИ изучит проект и ответит без внесения изменений.\n" +
-                        "• *⚡️ Запустить промпт:* нажмите кнопку, скопируйте шаблон и введите творческое задание. Например: `/run Создай три шейповых прямоугольника разного цвета и сделай им анимацию вращения`. ИИ напишет ExtendScript, выполнит его в AE и пришлет вам скриншот готового результата!\n\n" +
+                        "• *❓ Задать вопрос:* нажмите кнопку и просто введите любой вопрос. Например: `Сколько слоев в композиции и как они называются?` ИИ изучит проект и ответит без внесения изменений.\n" +
+                        "• *⚡️ Запустить промпт:* нажмите кнопку и просто введите творческое задание. Например: `Создай три шейповых прямоугольника разного цвета`. ИИ напишет ExtendScript, выполнит его в AE и пришлет вам скриншот готового результата!\n\n" +
                         "🔹 *4. Авто-уведомления*\n" +
                         "• Бот автоматически пришлет сообщение на ваш телефон, когда на компьютере завершится генерация изображений (Draw) или генерация скрипта (Agent)!";
         await sendTelegramMessage(manualMsg);
     }
     else {
-        await sendTelegramMessage("⚠️ Неизвестная команда. Введите `/help` или используйте кнопки меню ниже.");
+        if (tgSessionMode === 'ask') {
+            await handleAskCommand(text);
+        } else if (tgSessionMode === 'run') {
+            await handleRemotePromptCommand(text);
+        } else {
+            await sendTelegramMessage("⚠️ Неизвестная команда. Введите `/help` или используйте кнопки меню ниже.");
+        }
     }
+}
 }
 
 /**
@@ -412,7 +419,19 @@ async function handleRemotePromptCommand(promptText) {
         var responseCard = document.getElementById('responseCard');
         if (responseCard) {
             var renderedText = (currentMode === 'execute') ? '```javascript\n' + responseText + '\n```' : responseText;
-            responseCard.innerHTML = formatMarkdown(renderedText);
+            var responseHTML = formatMarkdown(renderedText);
+            
+            // Обозначаем, что запрос пришел удаленно
+            var promptBubble = '<div class="user-prompt-bubble">' +
+                '<span class="prompt-icon" style="display:flex;align-items:center;gap:4px;">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>' +
+                '<line x1="12" y1="18" x2="12.01" y2="18"></line>' +
+                '</svg>Telegram:</span>' +
+                '<span class="prompt-text">' + promptText + '</span>' +
+                '</div>';
+                
+            responseCard.innerHTML = promptBubble + responseHTML;
             responseCard.classList.remove('hidden');
         }
 
