@@ -216,4 +216,95 @@
         }
     };
 
+    /**
+     * Gathers composition and project statistics for Telegram status message.
+     * 
+     * @global
+     * @returns {string} JSON string of AE stats.
+     */
+    getAECompositionStats = function () {
+        try {
+            var activeComp = app.project.activeItem;
+            var projectName = app.project.file ? app.project.file.name : "Untitled.aep";
+            
+            if (!activeComp || activeComp.typeName !== "Composition") {
+                return "{\"success\":false,\"error\":\"No active composition found.\",\"projectName\":\"" + escapeString(projectName) + "\"}";
+            }
+            
+            return "{" +
+                "\"success\":true," +
+                "\"projectName\":\"" + escapeString(projectName) + "\"," +
+                "\"activeCompName\":\"" + escapeString(activeComp.name) + "\"," +
+                "\"width\":" + activeComp.width + "," +
+                "\"height\":" + activeComp.height + "," +
+                "\"duration\":" + activeComp.duration + "," +
+                "\"frameRate\":" + activeComp.frameRate + "," +
+                "\"layerCount\":" + activeComp.layers.length +
+            "}";
+        } catch (e) {
+            return "{\"success\":false,\"error\":\"" + escapeString(e.toString()) + "\"}";
+        }
+    };
+
+    /**
+     * Exports the current frame at timeline playhead as a PNG file.
+     * 
+     * @global
+     * @param {string} outputPath - Absolute destination path.
+     * @returns {string} Success or error string.
+     */
+    exportActiveFrameToPath = function (outputPath) {
+        try {
+            var activeComp = app.project.activeItem;
+            if (!activeComp || activeComp.typeName !== "Composition") {
+                return "Error: No active composition found.";
+            }
+            
+            var currentTime = activeComp.time;
+            var fileObj = new File(outputPath);
+            activeComp.saveFrameToPng(currentTime, fileObj);
+            
+            if (!fileObj.exists) {
+                return "Error: Failed to write PNG frame file.";
+            }
+            return "Success: Frame exported to " + fileObj.fsName;
+        } catch (e) {
+            return "Error: " + e.toString();
+        }
+    };
+
+    /**
+     * Adds the current active composition to the render queue, sets the output file path, and renders.
+     * 
+     * @global
+     * @param {string} outputPath - Absolute path for output.
+     * @returns {string} Success or error string.
+     */
+    triggerActiveCompRender = function (outputPath) {
+        try {
+            var activeComp = app.project.activeItem;
+            if (!activeComp || activeComp.typeName !== "Composition") {
+                return "Error: No active composition found.";
+            }
+            
+            // Add to Render Queue
+            var rqItem = app.project.renderQueue.items.add(activeComp);
+            var outputModule = rqItem.outputModule(1);
+            
+            // Set output file
+            var fileObj = new File(outputPath);
+            outputModule.file = fileObj;
+            
+            // Execute Render
+            app.project.renderQueue.render();
+            
+            if (!fileObj.exists) {
+                return "Error: Render completed but output file not found on disk.";
+            }
+            return "Success: Render complete at " + fileObj.fsName;
+        } catch (e) {
+            return "Error: " + e.toString();
+        }
+    };
+
 })();

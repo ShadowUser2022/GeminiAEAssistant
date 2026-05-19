@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1. Initialize settings & cost trackers
     initApiKeysSettings();
 
+    // Initialize Telegram Remote Bot if configured
+    if (typeof initTelegramBot === 'function') {
+        initTelegramBot();
+    }
+
     // 2. Query dynamicPaid billing capabilities
     checkGoogleBillingStatus();
 

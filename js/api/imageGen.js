@@ -247,6 +247,10 @@ function saveAndImportImage(b64Data, extension, modelName, responseCard, btn) {
             if (parsed.success) {
                 logToConsole('Image imported and added to composition successfully!');
                 setStatus('Ready.', false);
+                // Send push notification to Telegram if enabled
+                if (typeof sendTelegramMessage === 'function' && telegramEnabled && telegramToken) {
+                    sendTelegramMessage("🎨 *Генерация изображения завершена!*\nНовый слой `" + filename + "` успешно импортирован на таймлайн в After Effects.");
+                }
             } else {
                 logToConsole('ExtendScript Import Error: ' + parsed.error);
                 setStatus('Import error.', false);

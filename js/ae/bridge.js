@@ -50,6 +50,10 @@ function executeInAE(code) {
             if (parsedResult.success) {
                 logToConsole('Executed successfully.');
                 setStatus('Ready.', false);
+                // Send push notification to Telegram if enabled
+                if (typeof sendTelegramMessage === 'function' && telegramEnabled && telegramToken) {
+                    sendTelegramMessage("⚡️ *Скрипт успешно выполнен!*\nExtendScript-код сгенерирован и успешно применен к таймлайну After Effects на вашем компьютере.");
+                }
             } else {
                 logToConsole('ExtendScript Error:\n' + parsedResult.error);
                 setStatus('Execution error.', false);

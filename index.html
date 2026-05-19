@@ -169,6 +169,21 @@
 					<button id="toggleClaudeKey" class="eye-btn">👁️</button>
 				</div>
 			</div>
+			<div class="setting-field">
+				<label>Telegram Bot Token:</label>
+				<div class="input-with-eye">
+					<input type="password" id="tgTokenInput" placeholder="Enter Telegram Bot Token" />
+					<button id="toggleTgToken" class="eye-btn">👁️</button>
+				</div>
+			</div>
+			<div class="setting-field">
+				<label>Telegram Chat ID:</label>
+				<input type="text" id="tgChatIdInput" placeholder="Enter Telegram Chat ID" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #2a2d35; background: #13151a; color: #fff; font-size: 11px;" />
+			</div>
+			<div class="setting-field" style="flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; margin-top: 4px;">
+				<label style="margin-bottom: 0; cursor: pointer; color: var(--text-muted);">Enable Remote Bot:</label>
+				<input type="checkbox" id="tgEnableCheckbox" style="cursor: pointer; width: 14px; height: 14px; accent-color: var(--accent);" />
+			</div>
 		</div>
 
 		<textarea id="consoleOutput" readonly placeholder="Logs will appear here..."></textarea>
@@ -185,6 +200,7 @@
 	<script src="js/ae/bridge.js"></script>
 	<script src="js/api/gemini.js"></script>
 	<script src="js/api/imageGen.js"></script>
+	<script src="js/api/telegram.js"></script>
 	<script src="js/main.js"></script>
 </body>
 

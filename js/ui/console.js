@@ -228,12 +228,27 @@ function initApiKeysSettings() {
     var costDisplay  = document.getElementById('costDisplay');
     var resetCostBtn = document.getElementById('resetCostBtn');
 
+    var tgTokenInput  = document.getElementById('tgTokenInput');
+    var tgChatIdInput = document.getElementById('tgChatIdInput');
+    var tgEnableInput = document.getElementById('tgEnableCheckbox');
+    var toggleTgToken = document.getElementById('toggleTgToken');
+
     if (!geminiInput || !imagenInput || !claudeInput) return;
 
     // Load initial values (default to empty if none in localStorage)
     geminiInput.value = localStorage.getItem('gemini_api_key') || '';
     imagenInput.value = localStorage.getItem('imagen_api_key') || '';
     claudeInput.value = localStorage.getItem('claude_api_key') || '';
+
+    if (tgTokenInput) {
+        tgTokenInput.value = localStorage.getItem('gemini_tg_token') || '';
+    }
+    if (tgChatIdInput) {
+        tgChatIdInput.value = localStorage.getItem('gemini_tg_chatid') || '';
+    }
+    if (tgEnableInput) {
+        tgEnableInput.checked = localStorage.getItem('gemini_tg_enabled') === 'true';
+    }
 
     // Typing listener for Gemini Key
     geminiInput.addEventListener('input', function () {
@@ -280,6 +295,53 @@ function initApiKeysSettings() {
         }
     });
 
+    // Telegram Bot event listeners
+    if (tgTokenInput) {
+        tgTokenInput.addEventListener('input', function () {
+            var val = tgTokenInput.value.trim();
+            if (val) {
+                localStorage.setItem('gemini_tg_token', val);
+                telegramToken = val;
+            } else {
+                localStorage.removeItem('gemini_tg_token');
+                telegramToken = '';
+            }
+            if (typeof startTelegramPolling === 'function' && telegramEnabled) {
+                startTelegramPolling();
+            }
+        });
+    }
+
+    if (tgChatIdInput) {
+        tgChatIdInput.addEventListener('input', function () {
+            var val = tgChatIdInput.value.trim();
+            if (val) {
+                localStorage.setItem('gemini_tg_chatid', val);
+                telegramChatId = val;
+            } else {
+                localStorage.removeItem('gemini_tg_chatid');
+                telegramChatId = '';
+            }
+        });
+    }
+
+    if (tgEnableInput) {
+        tgEnableInput.addEventListener('change', function () {
+            var checked = tgEnableInput.checked;
+            localStorage.setItem('gemini_tg_enabled', checked ? 'true' : 'false');
+            telegramEnabled = checked;
+            if (checked) {
+                if (typeof startTelegramPolling === 'function') {
+                    startTelegramPolling();
+                }
+            } else {
+                if (typeof stopTelegramPolling === 'function') {
+                    stopTelegramPolling();
+                }
+            }
+        });
+    }
+
     // Helper to toggle visibility
     function toggleVisibility(inputEl, btnEl) {
         var isPassword = inputEl.type === 'password';
@@ -306,6 +368,12 @@ function initApiKeysSettings() {
     if (toggleClaude) {
         toggleClaude.addEventListener('click', function () {
             toggleVisibility(claudeInput, toggleClaude);
+        });
+    }
+
+    if (toggleTgToken && tgTokenInput) {
+        toggleTgToken.addEventListener('click', function () {
+            toggleVisibility(tgTokenInput, toggleTgToken);
         });
     }
 
