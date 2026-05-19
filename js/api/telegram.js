@@ -267,8 +267,10 @@ async function handleTelegramMessage(message) {
     }
     else {
         if (tgSessionMode === 'ask') {
+            tgSessionMode = 'default';
             await handleAskCommand(text);
         } else if (tgSessionMode === 'run') {
+            tgSessionMode = 'default';
             await handleRemotePromptCommand(text);
         } else {
             await sendTelegramMessage("⚠️ Неизвестная команда. Введите `/help` или используйте кнопки меню ниже.");
