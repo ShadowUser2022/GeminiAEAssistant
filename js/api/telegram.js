@@ -413,18 +413,25 @@ async function handleRenderCommand() {
         csInterface.evalScript(`triggerActiveCompRender("${escapedPath}")`, async function (result) {
             if (result && result.indexOf('Success') !== -1) {
                 try {
+                    // Extract the actual file path returned by ExtendScript (since AE could auto-adjust the file extension)
+                    var actualRenderedPath = targetFilePath;
+                    if (result.indexOf('Success: ') === 0) {
+                        actualRenderedPath = result.substring(9).trim();
+                    }
+                    
                     // Check file size for Telegram limits
-                    var fileStats = fs.statSync(targetFilePath);
+                    var fileStats = fs.statSync(actualRenderedPath);
                     var fileSizeInMB = fileStats.size / (1024 * 1024);
+                    var realFileName = path.basename(actualRenderedPath);
                     
                     var successMsg = `✅ *Рендер успешно завершен!*\n` +
-                                     `💾 Файл сохранен на Рабочем столе: \`${finalFileName}\`\n` +
+                                     `💾 Файл сохранен на Рабочем столе: \`${realFileName}\`\n` +
                                      `☁️ Синхронизируется с вашим iCloud.`;
                     await sendTelegramMessage(successMsg);
                     
                     if (fileSizeInMB <= 50) {
                         await sendTelegramMessage("📤 Файл весит менее 50 МБ. Загружаю видео в чат Telegram...");
-                        await sendTelegramDocument(targetFilePath, `🎥 Рендер: ${finalFileName}`);
+                        await sendTelegramDocument(actualRenderedPath, `🎥 Рендер: ${realFileName}`);
                     } else {
                         await sendTelegramMessage(`⚠️ Видео слишком тяжелое (${fileSizeInMB.toFixed(1)} МБ) для отправки в Telegram (>50 МБ).\n` +
                                                   `Оно уже готово на вашем Рабочем столе для просмотра!`);

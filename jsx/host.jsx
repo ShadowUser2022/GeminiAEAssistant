@@ -295,16 +295,145 @@
             var fileObj = new File(outputPath);
             outputModule.file = fileObj;
             
+            // Get actual file path because AE might change the file extension based on output module template
+            var actualFile = outputModule.file;
+            
             // Execute Render
             app.project.renderQueue.render();
             
-            if (!fileObj.exists) {
-                return "Error: Render completed but output file not found on disk.";
+            if (!actualFile.exists) {
+                if (fileObj.exists) {
+                    actualFile = fileObj;
+                } else {
+                    return "Error: Render completed but output file not found on disk. Tried: " + actualFile.fsName;
+                }
             }
-            return "Success: Render complete at " + fileObj.fsName;
+            return "Success: " + actualFile.fsName;
         } catch (e) {
             return "Error: " + e.toString();
         }
     };
 
+    /**
+     * Gathers a list of compositions and nested pre-compositions inside the active composition.
+     * 
+     * @global
+     * @returns {string} JSON-formatted tree map.
+     */
+    getProjectNavigationTree = function () {
+        try {
+            var activeComp = app.project.activeItem;
+            var activeCompName = "null";
+            var preCompsData = "[]";
+            
+            if (activeComp && activeComp.typeName === "Composition") {
+                activeCompName = "\"" + escapeString(activeComp.name) + "\"";
+                
+                var preCompsList = [];
+                for (var i = 1; i <= activeComp.layers.length; i++) {
+                    var layer = activeComp.layers[i];
+                    if (layer.source && layer.source instanceof CompItem) {
+                        preCompsList.push("{" +
+                            "\"name\":\"" + escapeString(layer.name) + "\"," +
+                            "\"index\":" + layer.index + "," +
+                            "\"compName\":\"" + escapeString(layer.source.name) + "\"" +
+                        "}");
+                    }
+                }
+                preCompsData = "[" + preCompsList.join(",") + "]";
+            }
+            
+            var projectComps = [];
+            for (var j = 1; j <= app.project.numItems; j++) {
+                var item = app.project.item(j);
+                if (item instanceof CompItem) {
+                    projectComps.push("\"" + escapeString(item.name) + "\"");
+                }
+            }
+            var projectCompsData = "[" + projectComps.join(",") + "]";
+            
+            return "{" +
+                "\"success\":true," +
+                "\"activeCompName\":" + activeCompName + "," +
+                "\"preComps\":" + preCompsData + "," +
+                "\"projectComps\":" + projectCompsData +
+            "}";
+        } catch (e) {
+            return "{\"success\":false,\"error\":\"" + escapeString(e.toString()) + "\"}";
+        }
+    };
+
+    /**
+     * Programmatically switches the active composition in the After Effects viewer.
+     * 
+     * @global
+     * @param {string} compName - The exact composition name to switch to.
+     * @returns {string} JSON-formatted success or error.
+     */
+    switchActiveCompositionByName = function (compName) {
+        try {
+            for (var i = 1; i <= app.project.numItems; i++) {
+                var item = app.project.item(i);
+                if (item instanceof CompItem && item.name === compName) {
+                    item.openInViewer();
+                    return "{\"success\":true}";
+                }
+            }
+            return "{\"success\":false,\"error\":\"Composition not found: " + escapeString(compName) + "\"}";
+        } catch (e) {
+            return "{\"success\":false,\"error\":\"" + escapeString(e.toString()) + "\"}";
+        }
+    };
+
+    /**
+     * Programmatically opens a composition, deselects other layers, selects the specified layer index, and focuses the timeline.
+     * 
+     * @global
+     * @param {string} compName - The composition name.
+     * @param {number} layerIndex - The index of the layer to select.
+     * @returns {string} JSON-formatted success or error.
+     */
+    selectAndFocusLayer = function (compName, layerIndex) {
+        try {
+            var compItem = null;
+            for (var i = 1; i <= app.project.numItems; i++) {
+                var item = app.project.item(i);
+                if (item instanceof CompItem && item.name === compName) {
+                    compItem = item;
+                    break;
+                }
+            }
+            
+            if (!compItem) {
+                return "{\"success\":false,\"error\":\"Composition not found: " + escapeString(compName) + "\"}";
+            }
+            
+            compItem.openInViewer();
+            
+            var layer = compItem.layer(Number(layerIndex));
+            if (!layer) {
+                return "{\"success\":false,\"error\":\"Layer not found at index: " + layerIndex + "\"}";
+            }
+            
+            // Deselect all
+            for (var j = 1; j <= compItem.layers.length; j++) {
+                compItem.layers[j].selected = false;
+            }
+            
+            // Select our target layer
+            layer.selected = true;
+            
+            // Force Timeline window focus
+            var timelineCmdId = app.findMenuCommandId("Timeline");
+            if (timelineCmdId) {
+                app.executeCommand(timelineCmdId);
+            }
+            
+            return "{\"success\":true}";
+        } catch (e) {
+            return "{\"success\":false,\"error\":\"" + escapeString(e.toString()) + "\"}";
+        }
+    };
+
 })();
+
