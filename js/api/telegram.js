@@ -168,6 +168,7 @@ async function handleTelegramMessage(message) {
                       "❓ `/ask <вопрос>` — Задать вопрос ИИ без изменения проекта\n" +
                       "⚡️ `/run <промпт>` — Сгенерировать и запустить код (с авто-скриншотом)\n" +
                       "⚙️ `/model` — Выбрать активную модель ИИ\n" +
+                      "🔄 `/reload` — Удаленный перезапуск панели и Node.js\n" +
                       "📖 `Инструкция` — Подробное интерактивное руководство по боту\n\n" +
                       "⚠️ *Настройка:* Если не работает скриншот, убедитесь, что на таймлайне открыта активная композиция и в AE в меню *Preferences -> Scripting & Expressions* включена галочка *Allow Scripts to Write Files*!";
         await sendTelegramMessage(helpMsg);
@@ -244,6 +245,13 @@ async function handleTelegramMessage(message) {
         var promptText = text.substring(5).trim();
         await handleRemotePromptCommand(promptText);
     } 
+    else if (text.startsWith('/reload') || text.startsWith('/restart') || text === '🔄 Перезапуск') {
+        tgSessionMode = 'default';
+        await sendTelegramMessage("🔄 *Перезапускаю панель After Effects и среду Node.js...*\n\nПожалуйста, подождите 1-2 секунды, пока бот инициализирует новое подключение.");
+        setTimeout(function() {
+            window.location.reload(true);
+        }, 1000);
+    }
     else if (text === '📖 Инструкция' || text.startsWith('/guide')) {
         tgSessionMode = 'default';
         var manualMsg = "📖 *Инструкция по работе с Gemini AE Assistant*\n\n" +
@@ -335,27 +343,99 @@ async function handleScreenshotCommand() {
 }
 
 /**
- * Triggers composition render and returns the exported video/document.
+ * Triggers composition render, saving it to macOS Desktop with automatic incrementing name,
+ * and sends it to Telegram if size <= 50MB (which is the Telegram Bot API upload limit).
  */
 async function handleRenderCommand() {
-    await sendTelegramMessage("🎬 Запускаю рендер композиции. Пожалуйста, подождите (интерфейс AE может временно зависнуть)...");
+    await sendTelegramMessage("⏳ Запрашиваю информацию о композиции перед рендером...");
 
-    const path = require('path');
-    var extensionDir = csInterface.getSystemPath(SystemPath.EXTENSION);
-    var tempRenderPath = path.join(extensionDir, 'logs', 'ae_telegram_render.mov');
-    var escapedPath = tempRenderPath.replace(/\\/g, '\\\\');
-
-    csInterface.evalScript(`triggerActiveCompRender("${escapedPath}")`, async function (result) {
-        if (result && result.indexOf('Success') !== -1) {
-            await sendTelegramMessage("✅ Рендер завершен! Считываю файл для отправки...");
+    csInterface.evalScript('getAECompositionStats()', async function (statsResult) {
+        var compName = "render";
+        var isCompActive = false;
+        
+        if (statsResult && statsResult.indexOf('Error') === -1) {
             try {
-                await sendTelegramDocument(tempRenderPath, "🎥 Готовый рендер активной композиции!");
+                var stats = JSON.parse(statsResult);
+                if (stats.success !== false && stats.activeCompName) {
+                    compName = stats.activeCompName;
+                    isCompActive = true;
+                } else {
+                    var noCompMsg = `❌ *Не удалось запустить рендер*:\n` +
+                                    `Активная композиция не выбрана на таймлайне. Пожалуйста, откройте композицию и повторите попытку!`;
+                    await sendTelegramMessage(noCompMsg);
+                    return;
+                }
             } catch (err) {
-                await sendTelegramMessage(`❌ Рендер выполнен успешно, но не удалось отправить файл: ${err.message}`);
+                // Fallback to default name if stats parsing fails
             }
         } else {
-            await sendTelegramMessage(`❌ Ошибка во время рендера: ${result}`);
+            await sendTelegramMessage("❌ Ошибка: Не удалось получить имя композиции из After Effects.");
+            return;
         }
+        
+        // Clean comp name for a safe filename (letters, numbers, spaces, underscores, hyphens, and Cyrillic allowed)
+        var cleanCompName = compName.replace(/[^a-zA-Z0-9_\-\sА-Яа-яЁё]/g, '_').trim();
+        if (!cleanCompName) {
+            cleanCompName = "render";
+        }
+        
+        var path = require('path');
+        var fs = require('fs');
+        
+        // Resolve target folder (macOS Desktop)
+        var homeDir = process.env.HOME || process.env.USERPROFILE || '';
+        var targetDir = path.join(homeDir, 'Desktop');
+        
+        // Fallback to logs if Desktop doesn't exist
+        if (!fs.existsSync(targetDir)) {
+            var extensionDir = csInterface.getSystemPath(SystemPath.EXTENSION);
+            targetDir = path.join(extensionDir, 'logs');
+        }
+        
+        // Construct unique filename (incremental counter)
+        var extension = ".mov";
+        var finalFileName = cleanCompName + extension;
+        var targetFilePath = path.join(targetDir, finalFileName);
+        var counter = 1;
+        
+        while (fs.existsSync(targetFilePath)) {
+            finalFileName = cleanCompName + "_" + counter + extension;
+            targetFilePath = path.join(targetDir, finalFileName);
+            counter++;
+        }
+        
+        await sendTelegramMessage(`🎬 Запускаю рендер композиции *${compName}*...\n` +
+                                  `📍 Путь сохранения: Рабочий стол (\`${finalFileName}\`)\n` +
+                                  `⏳ Пожалуйста, подождите (интерфейс AE может временно зависнуть)...`);
+
+        var escapedPath = targetFilePath.replace(/\\/g, '\\\\');
+
+        csInterface.evalScript(`triggerActiveCompRender("${escapedPath}")`, async function (result) {
+            if (result && result.indexOf('Success') !== -1) {
+                try {
+                    // Check file size for Telegram limits
+                    var fileStats = fs.statSync(targetFilePath);
+                    var fileSizeInMB = fileStats.size / (1024 * 1024);
+                    
+                    var successMsg = `✅ *Рендер успешно завершен!*\n` +
+                                     `💾 Файл сохранен на Рабочем столе: \`${finalFileName}\`\n` +
+                                     `☁️ Синхронизируется с вашим iCloud.`;
+                    await sendTelegramMessage(successMsg);
+                    
+                    if (fileSizeInMB <= 50) {
+                        await sendTelegramMessage("📤 Файл весит менее 50 МБ. Загружаю видео в чат Telegram...");
+                        await sendTelegramDocument(targetFilePath, `🎥 Рендер: ${finalFileName}`);
+                    } else {
+                        await sendTelegramMessage(`⚠️ Видео слишком тяжелое (${fileSizeInMB.toFixed(1)} МБ) для отправки в Telegram (>50 МБ).\n` +
+                                                  `Оно уже готово на вашем Рабочем столе для просмотра!`);
+                    }
+                } catch (err) {
+                    await sendTelegramMessage(`❌ Рендер выполнен успешно, но произошла ошибка при обработке файла: ${err.message}`);
+                }
+            } else {
+                await sendTelegramMessage(`❌ Ошибка во время рендера: ${result}`);
+            }
+        });
     });
 }
 
@@ -526,7 +606,7 @@ async function sendTelegramMessage(text) {
                         [{"text": "📊 Статус"}, {"text": "📸 Скриншот"}],
                         [{"text": "🎬 Рендер"}, {"text": "ℹ️ Помощь"}],
                         [{"text": "❓ Задать вопрос"}, {"text": "⚡️ Запустить промпт"}],
-                        [{"text": "⚙️ Сменить модель"}, {"text": "📖 Инструкция"}]
+                        [{"text": "⚙️ Сменить модель"}, {"text": "📖 Инструкция"}, {"text": "🔄 Перезапуск"}]
                     ],
                     resize_keyboard: true
                 }
