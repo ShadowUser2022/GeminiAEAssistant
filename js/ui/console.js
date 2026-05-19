@@ -441,4 +441,23 @@ function initApiKeysSettings() {
     if (modelSelect) {
         modelSelect.addEventListener('change', toggleCostDisplayVisibility);
     }
+
+    // Bind Clear Logs button
+    var clearBtn = document.getElementById('clearBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            var consoleEl = document.getElementById('consoleOutput');
+            if (consoleEl) {
+                consoleEl.value = '';
+            }
+        });
+    }
+
+    // Bind Reload Panel button
+    var reloadPanelBtn = document.getElementById('reloadPanelBtn');
+    if (reloadPanelBtn) {
+        reloadPanelBtn.addEventListener('click', function () {
+            window.location.reload(true);
+        });
+    }
 }

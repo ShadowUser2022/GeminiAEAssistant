@@ -43,6 +43,15 @@
 				</button>
 			</div>
 
+			<!-- Иконка открытия подсказок (Инфо) -->
+			<button id="toggleHelp" class="secondary-btn icon-only-btn" title="Help & Tips" style="margin-right: 4px;">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="10"></circle>
+					<line x1="12" y1="16" x2="12" y2="12"></line>
+					<line x1="12" y1="8" x2="12.01" y2="8"></line>
+				</svg>
+			</button>
+
 			<!-- Иконка открытия настроек в верхнем углу (Шестеренка) -->
 			<button id="toggleConsole" class="secondary-btn icon-only-btn" title="Settings & Logs">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -80,6 +89,28 @@
 
 		<!-- Paste/Attach Images Strip -->
 		<div id="previewContainer" class="preview-strip hidden"></div>
+
+		<!-- Help & Tips Banner -->
+		<div id="helpBanner" class="help-banner hidden">
+			<div class="help-banner-header">
+				<div style="display: flex; align-items: center; gap: 6px;">
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="10"></circle>
+						<line x1="12" y1="16" x2="12" y2="12"></line>
+						<line x1="12" y1="8" x2="12.01" y2="8"></line>
+					</svg>
+					<strong>Быстрые подсказки / Советы</strong>
+				</div>
+				<button id="closeHelpBtn" class="close-help-btn">&times;</button>
+			</div>
+			<div class="help-banner-content">
+				<ul>
+					<li>⚡️ <strong>Зависание After Effects?</strong> Если меню неактивны, возможно, скрылось окно ошибки. Сверните After Effects или нажмите <code>Enter / Esc</code>, чтобы разблокировать.</li>
+					<li>🎯 <strong>Привязка контекста:</strong> Нажмите на прицел <code>(+)</code> или перетащите слой/композицию в панель, чтобы ИИ видел их параметры.</li>
+					<li>⚙️ <strong>Логи и Настройки:</strong> Нажмите на шестеренку справа вверху, чтобы настроить ключи или изучить детальные логи.</li>
+				</ul>
+			</div>
+		</div>
 
 		<!-- Input field with action buttons inside -->
 		<div class="input-wrapper">
@@ -142,8 +173,9 @@
 		</div>
 
 		<div class="console-actions-row">
-			<button id="clearBtn" class="secondary-btn small-btn">Clear</button>
+			<button id="clearBtn" class="secondary-btn small-btn">Clear Logs</button>
 			<button id="resetCostBtn" class="secondary-btn small-btn">Reset Cost</button>
+			<button id="reloadPanelBtn" class="secondary-btn small-btn" style="color: #f87171; border-color: rgba(248,113,113,0.3);">Reload Panel</button>
 		</div>
 
 		<!-- Dynamic API key parameters drawer configuration -->
