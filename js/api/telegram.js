@@ -21,6 +21,27 @@ var tgSessionMode         = 'default';
 // ─── Initialization & Core Engine ─────────────────────────────────────────────
 
 /**
+ * Helper to perform fetch with timeout to prevent infinite hangs.
+ */
+async function fetchWithTimeout(resource, options) {
+    var timeout = (options && options.timeout) || 8000;
+    var controller = new AbortController();
+    var id = setTimeout(function() { controller.abort(); }, timeout);
+    
+    var fetchOptions = options || {};
+    fetchOptions.signal = controller.signal;
+    
+    try {
+        var response = await fetch(resource, fetchOptions);
+        clearTimeout(id);
+        return response;
+    } catch (err) {
+        clearTimeout(id);
+        throw err;
+    }
+}
+
+/**
  * Initializes settings from localStorage and boots up the polling loop if enabled.
  */
 function initTelegramBot() {
@@ -38,6 +59,18 @@ function initTelegramBot() {
     if (tgTokenEl) tgTokenEl.value = telegramToken;
     if (tgChatIdEl) tgChatIdEl.value = telegramChatId;
     if (tgEnableEl) tgEnableEl.checked = telegramEnabled;
+
+    // Auto-reconnect listeners when internet connection status changes
+    window.addEventListener('online', function() {
+        logToConsole('Network connection restored. Reconnecting Telegram Bot...');
+        if (telegramEnabled && telegramToken && telegramChatId) {
+            startTelegramPolling();
+        }
+    });
+
+    window.addEventListener('offline', function() {
+        logToConsole('Network connection lost. Telegram polling suspended.');
+    });
 
     if (telegramEnabled && telegramToken && telegramChatId) {
         startTelegramPolling();
@@ -78,11 +111,16 @@ function stopTelegramPolling() {
 async function pollTelegramUpdates() {
     if (!telegramToken || !telegramEnabled || isTelegramProcessing) return;
 
+    // If the browser reports offline, skip polling this cycle
+    if (navigator && navigator.onLine === false) {
+        return;
+    }
+
     isTelegramProcessing = true;
-    var url = `https://api.telegram.org/bot${telegramToken}/getUpdates?offset=${lastTelegramUpdateId + 1}&timeout=2`;
+    var url = "https://api.telegram.org/bot" + telegramToken + "/getUpdates?offset=" + (lastTelegramUpdateId + 1) + "&timeout=2";
 
     try {
-        var response = await fetch(url);
+        var response = await fetchWithTimeout(url, { timeout: 8000 });
         var data = await response.json();
 
         if (data.ok && data.result && data.result.length > 0) {
