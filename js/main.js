@@ -77,6 +77,23 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Toggle Help Panel
+    var toggleHelpBtn = document.getElementById('toggleHelp');
+    var helpBanner = document.getElementById('helpBanner');
+    var closeHelpBtn = document.getElementById('closeHelpBtn');
+
+    if (toggleHelpBtn && helpBanner) {
+        toggleHelpBtn.addEventListener('click', function () {
+            helpBanner.classList.toggle('hidden');
+        });
+    }
+
+    if (closeHelpBtn && helpBanner) {
+        closeHelpBtn.addEventListener('click', function () {
+            helpBanner.classList.add('hidden');
+        });
+    }
+
     // 5. Setup Drag-and-Drop file/context attachments in CEP
     var container = document.querySelector('.container');
     var dragOverlay = document.getElementById('dragOverlay');

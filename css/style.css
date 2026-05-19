@@ -1183,3 +1183,84 @@ details.tech-details-accordion .code-block-container {
 .toast-notification svg {
 	color: var(--accent);
 }
+
+/* ─── Premium Glassmorphic Help & Tips Banner ─── */
+.help-banner {
+	background: rgba(167, 139, 250, 0.03);
+	backdrop-filter: blur(8px);
+	border: 1px solid rgba(167, 139, 250, 0.15);
+	border-radius: var(--radius-md);
+	padding: 10px 12px;
+	margin-top: 4px;
+	margin-bottom: 4px;
+	font-family: 'Inter', sans-serif;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	transition: var(--transition);
+	animation: slideDownIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideDownIn {
+	from {
+		opacity: 0;
+		transform: translateY(-8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.help-banner-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 6px;
+}
+
+.help-banner-header strong {
+	font-size: 11px;
+	color: #ffffff;
+	font-weight: 600;
+	letter-spacing: 0.2px;
+}
+
+.close-help-btn {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	font-size: 16px;
+	cursor: pointer;
+	padding: 0 4px;
+	line-height: 1;
+	transition: var(--transition);
+}
+
+.close-help-btn:hover {
+	color: #ef4444;
+}
+
+.help-banner-content ul {
+	margin: 0;
+	padding-left: 14px;
+	list-style-type: disc;
+}
+
+.help-banner-content li {
+	font-size: 10px;
+	line-height: 1.45;
+	color: var(--text-muted);
+	margin-bottom: 6px;
+}
+
+.help-banner-content li:last-child {
+	margin-bottom: 0;
+}
+
+.help-banner-content code {
+	font-family: 'Courier New', monospace;
+	font-size: 9px;
+	background: rgba(255, 255, 255, 0.08);
+	padding: 1px 3px;
+	border-radius: 3px;
+	color: #a78bfa;
+}
