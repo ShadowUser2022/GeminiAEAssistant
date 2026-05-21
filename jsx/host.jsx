@@ -261,16 +261,17 @@
             }
             
             var currentTime = activeComp.time;
-            var fileObj = new File(outputPath);
-            if (fileObj.exists) {
-                fileObj.remove();
+            // Use OS temp folder to avoid spaces in path and permission restrictions
+            var tempFile = new File(Folder.temp.fsName + "/ae_telegram_screen.png");
+            if (tempFile.exists) {
+                tempFile.remove();
             }
-            activeComp.saveFrameToPng(currentTime, fileObj);
+            activeComp.saveFrameToPng(currentTime, tempFile);
             
-            if (!fileObj.exists) {
-                return "Error: Failed to write PNG frame file.";
+            if (!tempFile.exists) {
+                return "Error: Failed to write PNG frame file to: " + tempFile.fsName;
             }
-            return "Success: Frame exported to " + fileObj.fsName;
+            return "Success: Frame exported to " + tempFile.fsName;
         } catch (e) {
             return "Error: " + e.toString();
         }

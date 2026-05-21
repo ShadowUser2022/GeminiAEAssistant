@@ -77,6 +77,14 @@ async function fetchClaudeCode(selectedModel, isExecute, systemPrompt, signal) {
     var data = await response.json();
     var textResult = (data.content && data.content[0] && data.content[0].text) || '';
 
+    // Extract the voice summary if present
+    window.lastVoiceSummary = '';
+    var voiceMatch = textResult.match(/<voice>([\s\S]*?)<\/voice>/i);
+    if (voiceMatch) {
+        window.lastVoiceSummary = voiceMatch[1].trim();
+        textResult = textResult.replace(/<voice>[\s\S]*?<\/voice>/gi, '').trim();
+    }
+
     if (isExecute) {
         // Extract only the code inside the first ```javascript ... ``` block
         var codeBlockMatch = textResult.match(/```(?:javascript|js|extendscript|jsx)?\s*([\s\S]*?)```/i);
@@ -133,6 +141,14 @@ async function fetchGeminiCode(signal) {
     }
 
     var textResult = data.candidates[0].content.parts[0].text;
+
+    // Extract the voice summary if present
+    window.lastVoiceSummary = '';
+    var voiceMatch = textResult.match(/<voice>([\s\S]*?)<\/voice>/i);
+    if (voiceMatch) {
+        window.lastVoiceSummary = voiceMatch[1].trim();
+        textResult = textResult.replace(/<voice>[\s\S]*?<\/voice>/gi, '').trim();
+    }
 
     if (isExecute) {
         // Extract only the code inside the first ```javascript ... ``` block

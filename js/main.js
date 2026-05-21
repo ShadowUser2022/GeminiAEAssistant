@@ -314,8 +314,7 @@ async function handleGenerate() {
         var displayPrompt = promptText;
         if (!displayPrompt) {
             if (wasVoiceInput) {
-                var currentVoiceLang = (typeof voiceLanguage !== 'undefined') ? voiceLanguage : 'RU';
-                displayPrompt = "🎤 Голосовой запрос (" + currentVoiceLang + ")";
+                displayPrompt = "🎤 Голосовой запрос";
             } else {
                 displayPrompt = "Изображение/Контекст";
             }
@@ -341,7 +340,30 @@ async function handleGenerate() {
 
         // Speak the response if the text-to-speech speaker is available
         if (typeof speakResponse === 'function') {
-            speakResponse(responseText);
+            var summaryToSpeak = window.lastVoiceSummary;
+            if (!summaryToSpeak) {
+                if (currentMode === 'execute') {
+                    var detectedLang = 'ru';
+                    if (promptText) {
+                        var lowerPrompt = promptText.toLowerCase();
+                        if (/[іїєґ]/.test(lowerPrompt)) {
+                            detectedLang = 'uk';
+                        } else if (/[a-z]/.test(lowerPrompt) && !/[а-яёіїєґ]/.test(lowerPrompt)) {
+                            detectedLang = 'en';
+                        }
+                    }
+                    if (detectedLang === 'uk') {
+                        summaryToSpeak = 'Скрипт успішно застосовано.';
+                    } else if (detectedLang === 'en') {
+                        summaryToSpeak = 'Script executed successfully.';
+                    } else {
+                        summaryToSpeak = 'Скрипт успешно применён.';
+                    }
+                } else {
+                    summaryToSpeak = responseText;
+                }
+            }
+            speakResponse(summaryToSpeak);
         }
 
         // 5. In Agent mode, execute generated code in AE

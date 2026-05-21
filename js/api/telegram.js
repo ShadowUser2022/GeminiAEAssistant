@@ -272,7 +272,10 @@ async function handleTelegramMessage(message) {
                         "• *❓ Задать вопрос:* нажмите кнопку и просто введите любой вопрос. Например: `Сколько слоев в композиции и как они называются?` ИИ изучит проект и ответит без внесения изменений.\n" +
                         "• *⚡️ Запустить промпт:* нажмите кнопку и просто введите творческое задание. Например: `Создай три шейповых прямоугольника разного цвета`. ИИ напишет ExtendScript, выполнит его в AE и пришлет вам скриншот готового результата!\n\n" +
                         "🔹 *4. Авто-уведомления*\n" +
-                        "• Бот автоматически пришлет сообщение на ваш телефон, когда на компьютере завершится генерация изображений (Draw) или генерация скрипта (Agent)!";
+                        "• Бот автоматически пришлет сообщение на ваш телефон, когда на компьютере завершится генерация изображений (Draw) или генерация скрипта (Agent)!\n\n" +
+                        "💰 *5. Тарификация и ИИ*\n" +
+                        "• Навигация, скриншоты, статус и рендер выполняются полностью бесплатно на вашем компьютере (как пульт от ТВ).\n" +
+                        "• Команды ИИ (/ask и /run) используют ваш личный API-ключ. Чтобы работать бесплатно, переключите модель на Gemini Flash.";
         await sendTelegramMessage(manualMsg);
     }
     else {
@@ -329,17 +332,11 @@ async function handleStatusCommand() {
 async function handleScreenshotCommand() {
     await sendTelegramMessage("📸 Делаю скриншот таймлайна...");
 
-    const path = require('path');
-    var extensionDir = csInterface.getSystemPath(SystemPath.EXTENSION);
-    var tempPath = path.join(extensionDir, 'logs', 'ae_telegram_screen.png');
-
-    // Escape backslashes for ExtendScript evaluation
-    var escapedTempPath = tempPath.replace(/\\/g, '\\\\');
-
-    csInterface.evalScript(`exportActiveFrameToPath("${escapedTempPath}")`, async function (result) {
+    csInterface.evalScript('exportActiveFrameToPath("")', async function (result) {
         if (result && result.indexOf('Success') !== -1) {
             try {
-                await sendTelegramPhoto(tempPath, "🖼 Текущий прогресс таймлайна After Effects");
+                var actualPath = result.replace("Success: Frame exported to ", "").trim();
+                await sendTelegramPhoto(actualPath, "🖼 Текущий прогресс таймлайна After Effects");
             } catch (err) {
                 await sendTelegramMessage(`❌ Скриншот создан, но не отправлен: ${err.message}`);
             }

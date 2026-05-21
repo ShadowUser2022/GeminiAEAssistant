@@ -694,14 +694,6 @@ select {
 	right: 72px;
 }
 
-#voiceLangBtn {
-	right: 104px;
-	font-family: inherit;
-	font-size: 9px !important;
-	font-weight: 600 !important;
-	color: var(--text-muted);
-}
-
 @keyframes voicePulse {
 	0% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.4); }
 	70% { box-shadow: 0 0 0 8px rgba(167, 139, 250, 0); }
@@ -730,7 +722,7 @@ select {
 /* Корректируем внутренние отступы promptInput, чтобы текст не заезжал на кнопки */
 #promptInput {
 	padding-left: 76px !important;
-	padding-right: 140px !important;
+	padding-right: 112px !important;
 	padding-bottom: 38px !important;
 }
 

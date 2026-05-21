@@ -3,12 +3,11 @@
  * @description Voice control manager for Speech-to-Text (STT) and Text-to-Speech (TTS).
  *
  * Implements browser SpeechRecognition and SpeechSynthesis, custom audio cues,
- * stop-word processing, and continuous dialog loops.
+ * stop-word processing, and continuous dialogue loops.
  *
  * Shared globals: handleGenerate (main.js), logToConsole (ui/console.js), showToast (main.js)
  */
 
-var voiceLanguage = 'RU'; // 'RU', 'UA', or 'EN'
 var voiceContinuous = false;
 var isListening = false;
 var isSpeaking = false;
@@ -20,26 +19,19 @@ var continuousRestartTimeout = null;
 var mediaRecorder = null;
 var audioChunks = [];
 var audioStream = null;
-var voiceFallbackActive = false;
+var voiceFallbackActive = true;
 window.recordedAudioData = null;
 var silenceDetectionInterval = null;
 var audioContextForSilence = null;
 var analyserForSilence = null;
 var streamSourceForSilence = null;
 
-// Stop words defined per language
-var STOP_WORDS = {
-    'RU': ['стоп', 'хватит', 'достаточно', 'перестань', 'остановись', 'пауза'],
-    'UA': ['стоп', 'досить', 'зупинись', 'перестань', 'зупинка', 'пауза'],
-    'EN': ['stop', 'enough', 'cancel', 'pause', 'exit', 'quit', 'shut up']
-};
-
-// Lang code mapping for SpeechRecognition/Synthesis
-var LANG_CODES = {
-    'RU': 'ru-RU',
-    'UA': 'uk-UA',
-    'EN': 'en-US'
-};
+// Combined stop words across Russian, Ukrainian, and English
+var ALL_STOP_WORDS = [
+    'стоп', 'хватит', 'достаточно', 'перестань', 'остановись', 'пауза',
+    'досить', 'зупинись', 'зупинка',
+    'stop', 'enough', 'cancel', 'pause', 'exit', 'quit', 'shut up'
+];
 
 /**
  * Synthesizes a clean audio beep using Web Audio API for interactive feedback.
@@ -72,52 +64,46 @@ function playVoiceBeep(frequency, duration) {
 }
 
 /**
- * Initializes the SpeechRecognition instance.
+ * Legacy-aware wrapper to request the audio stream.
+ * Handles Chromium Secure Context restrictions on file:// schemes.
  */
-function initSpeechRecognition() {
-    var SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) {
-        logToConsole('SpeechRecognition is not supported in this environment. Activating MediaRecorder audio fallback.');
-        voiceFallbackActive = true;
-        return true;
+async function getAudioStream() {
+    var nav = window.navigator;
+    var getUserMedia = (nav.mediaDevices && nav.mediaDevices.getUserMedia && nav.mediaDevices.getUserMedia.bind(nav.mediaDevices)) ||
+                       (nav.getUserMedia && nav.getUserMedia.bind(nav)) ||
+                       (nav.webkitGetUserMedia && nav.webkitGetUserMedia.bind(nav)) ||
+                       (nav.mozGetUserMedia && nav.mozGetUserMedia.bind(nav)) ||
+                       (nav.msGetUserMedia && nav.msGetUserMedia.bind(nav));
+                       
+    if (!getUserMedia) {
+        throw new Error('getUserMedia is not supported in this browser environment');
     }
     
-    recognition = new SpeechRecognitionClass();
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    if (nav.mediaDevices && nav.mediaDevices.getUserMedia) {
+        return await nav.mediaDevices.getUserMedia({ audio: true });
+    }
     
-    recognition.onstart = function() {
-        isListening = true;
-        updateVoiceUI();
-        playVoiceBeep(880, 0.08); // High pitch beep for activation
-        logToConsole('Speech recognition started (' + LANG_CODES[voiceLanguage] + ')...');
-    };
-    
-    recognition.onresult = function(event) {
-        if (event.results && event.results[0] && event.results[0][0]) {
-            var transcript = event.results[0][0].transcript.trim();
-            logToConsole('Recognized speech: "' + transcript + '"');
-            processSpeechResult(transcript);
-        }
-    };
-    
-    recognition.onerror = function(event) {
-        logToConsole('Speech recognition error: ' + event.error);
-        if (event.error === 'not-allowed') {
-            showToast('Доступ к микрофону заблокирован. Разрешите его в Системных настройках macOS.');
-            stopContinuousDialog();
-        }
-        isListening = false;
-        updateVoiceUI();
-    };
-    
-    recognition.onend = function() {
-        isListening = false;
-        updateVoiceUI();
-        logToConsole('Speech recognition ended.');
-    };
-    
-    return true;
+    return new Promise(function(resolve, reject) {
+        getUserMedia({ audio: true }, resolve, reject);
+    });
+}
+
+/**
+ * Detects the language of a text segment dynamically.
+ * @param {string} text
+ * @returns {string} Language code
+ */
+function detectSegmentLang(text) {
+    if (/[a-zA-Z]/.test(text)) {
+        return 'en-US';
+    }
+    if (/[іІїЇєЄґҐ]/.test(text)) {
+        return 'uk-UA';
+    }
+    if (/[ыЫэЭъЪёЁ]/.test(text)) {
+        return 'ru-RU';
+    }
+    return 'ru-RU';
 }
 
 async function startMediaRecorderListening() {
@@ -125,7 +111,7 @@ async function startMediaRecorderListening() {
     audioChunks = [];
     
     try {
-        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStream = await getAudioStream();
     } catch (err) {
         logToConsole('Microphone permission denied or media error: ' + err.message);
         showToast('Доступ к микрофону заблокирован. Разрешите его в Системных настройках macOS.');
@@ -159,8 +145,6 @@ async function startMediaRecorderListening() {
             updateVoiceUI();
             playVoiceBeep(880, 0.08); // High pitch beep for activation
             logToConsole('Audio recording started (MediaRecorder, mimeType: ' + (options.mimeType || 'default') + ')...');
-            
-            // Start silence detection to automatically stop when the user stops speaking
             setupSilenceDetection(audioStream);
         };
         
@@ -300,20 +284,17 @@ function cleanupSilenceDetection() {
  */
 function processSpeechResult(text) {
     var lowerText = text.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
-    var stops = STOP_WORDS[voiceLanguage] || [];
     
-    // Check if the input matches any stop word
-    for (var i = 0; i < stops.length; i++) {
-        if (lowerText === stops[i]) {
-            logToConsole('Stop word detected: "' + stops[i] + '". Aborting continuous cycle.');
+    // Check if the input matches any stop word across all languages
+    for (var i = 0; i < ALL_STOP_WORDS.length; i++) {
+        if (lowerText === ALL_STOP_WORDS[i]) {
+            logToConsole('Stop word detected: "' + ALL_STOP_WORDS[i] + '". Aborting continuous cycle.');
             stopContinuousDialog();
             
-            var stopResponse = {
-                'RU': 'Остановлено',
-                'UA': 'Зупинено',
-                'EN': 'Stopped'
-            }[voiceLanguage];
-            
+            var stopResponse = 'Stopped';
+            if (ALL_STOP_WORDS[i] === 'стоп' || ALL_STOP_WORDS[i] === 'досить' || ALL_STOP_WORDS[i] === 'перестань') {
+                stopResponse = 'Остановлено';
+            }
             speakTextQuietly(stopResponse);
             return;
         }
@@ -335,7 +316,6 @@ function processSpeechResult(text) {
  * Starts Speech Recognition if it is not already running.
  */
 function startListening() {
-    // If speaking, wait for speech to finish first
     if (isSpeaking) {
         logToConsole('Delaying listening because speech synthesis is speaking.');
         return;
@@ -343,21 +323,8 @@ function startListening() {
     
     if (isListening) return;
     
-    if (!recognition && !voiceFallbackActive) {
-        if (!initSpeechRecognition()) return;
-    }
-    
     if (voiceFallbackActive) {
         startMediaRecorderListening();
-    } else {
-        // Set the language dynamically based on active selection
-        recognition.lang = LANG_CODES[voiceLanguage];
-        
-        try {
-            recognition.start();
-        } catch (e) {
-            logToConsole('Failed to start SpeechRecognition: ' + e.message);
-        }
     }
 }
 
@@ -368,14 +335,6 @@ function stopListening() {
     if (!isListening) return;
     if (voiceFallbackActive) {
         stopMediaRecorderListening();
-    } else {
-        if (!recognition) return;
-        try {
-            recognition.stop();
-            playVoiceBeep(440, 0.12); // Lower pitch beep for deactivation
-        } catch (e) {
-            logToConsole('Failed to stop SpeechRecognition: ' + e.message);
-        }
     }
 }
 
@@ -388,15 +347,21 @@ function speakTextQuietly(text) {
     
     window.speechSynthesis.cancel();
     var utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = LANG_CODES[voiceLanguage];
+    var langCode = detectSegmentLang(text);
+    utterance.lang = langCode;
     
     var voices = window.speechSynthesis.getVoices();
-    var langPrefix = LANG_CODES[voiceLanguage];
+    var targetVoice = null;
+    
     for (var i = 0; i < voices.length; i++) {
-        if (voices[i].lang.indexOf(langPrefix) === 0) {
-            utterance.voice = voices[i];
+        var v = voices[i];
+        if (v.lang.toLowerCase().indexOf(langCode.substring(0, 2)) === 0) {
+            targetVoice = v;
             break;
         }
+    }
+    if (targetVoice) {
+        utterance.voice = targetVoice;
     }
     
     window.speechSynthesis.speak(utterance);
@@ -409,15 +374,11 @@ function speakTextQuietly(text) {
  * @returns {string} Clean conversational text.
  */
 function cleanTextForVoice(text) {
-    // Remove markdown code blocks
-    var clean = text.replace(/```[\s\S]*?```/g, '');
-    // Remove inline code ticks
+    var clean = text.replace(/<voice>[\s\S]*?<\/voice>/g, '');
+    clean = clean.replace(/```[\s\S]*?```/g, '');
     clean = clean.replace(/`([^`]+)`/g, '$1');
-    // Remove markdown links but keep text
     clean = clean.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
-    // Remove headers, list indicators, bold, italic characters
     clean = clean.replace(/[#*_\-]/g, ' ');
-    // Normalize spacing
     clean = clean.replace(/\s+/g, ' ');
     return clean.trim();
 }
@@ -431,7 +392,6 @@ function cleanTextForVoice(text) {
 function segmentTextByLanguage(text) {
     if (!text) return [];
     
-    // Split by captures of English words/phrases (continuous Latin letters/numbers/spaces)
     var parts = text.split(/([a-zA-Z][a-zA-Z0-9\s'’\-\.,!\?]*[a-zA-Z0-9]|[a-zA-Z]+)/g);
     var segments = [];
     
@@ -442,7 +402,6 @@ function segmentTextByLanguage(text) {
         var trimmed = part.trim();
         if (!trimmed) continue;
         
-        // A segment is Latin if it contains English letters
         var isLatin = /[a-zA-Z]/.test(trimmed);
         
         segments.push({
@@ -463,7 +422,6 @@ function segmentTextByLanguage(text) {
 function speakResponse(text) {
     if (!window.speechSynthesis) return;
     
-    // Stop any active recognition to prevent speaking into the microphone
     if (isListening) {
         stopListening();
     }
@@ -475,7 +433,6 @@ function speakResponse(text) {
     
     var cleanText = cleanTextForVoice(text);
     if (!cleanText) {
-        // If there's no speech content (e.g. code only), skip and restart listening if continuous
         if (voiceContinuous) {
             continuousRestartTimeout = setTimeout(function() {
                 startListening();
@@ -495,29 +452,32 @@ function speakResponse(text) {
     }
     
     var voices = window.speechSynthesis.getVoices();
-    var nativeLangPrefix = LANG_CODES[voiceLanguage];
-    var englishLangPrefix = 'en-US';
-    
-    // Find voices
-    var nativeVoice = null;
-    var englishVoice = null;
+    var ruVoice = null;
+    var ukVoice = null;
+    var enVoice = null;
     
     for (var i = 0; i < voices.length; i++) {
         var v = voices[i];
-        if (!nativeVoice && v.lang.indexOf(nativeLangPrefix) === 0) {
-            nativeVoice = v;
+        var lang = v.lang.toLowerCase();
+        if (!ruVoice && (lang.indexOf('ru') === 0 || lang.indexOf('rus') === 0)) {
+            ruVoice = v;
         }
-        if (!englishVoice && v.lang.indexOf(englishLangPrefix) === 0) {
-            englishVoice = v;
+        if (!ukVoice && (lang.indexOf('uk') === 0 || lang.indexOf('ukr') === 0)) {
+            ukVoice = v;
+        }
+        if (!enVoice && (lang.indexOf('en') === 0 || lang.indexOf('eng') === 0)) {
+            enVoice = v;
         }
     }
     
-    // Fallbacks
-    if (!nativeVoice && voices.length > 0) {
-        nativeVoice = voices[0];
-    }
-    if (!englishVoice) {
-        englishVoice = nativeVoice;
+    function getVoiceForLang(langCode) {
+        if (langCode === 'en-US') {
+            return enVoice || ruVoice || ukVoice || voices[0];
+        } else if (langCode === 'uk-UA') {
+            return ukVoice || ruVoice || enVoice || voices[0];
+        } else {
+            return ruVoice || ukVoice || enVoice || voices[0];
+        }
     }
     
     isSpeaking = true;
@@ -525,17 +485,11 @@ function speakResponse(text) {
     
     segments.forEach(function(segment, index) {
         var utterance = new SpeechSynthesisUtterance(segment.text);
+        var langCode = detectSegmentLang(segment.text);
         
-        // Select voice and language
-        if (segment.isLatin) {
-            utterance.lang = 'en-US';
-            utterance.voice = englishVoice;
-        } else {
-            utterance.lang = LANG_CODES[voiceLanguage];
-            utterance.voice = nativeVoice;
-        }
+        utterance.lang = langCode;
+        utterance.voice = getVoiceForLang(langCode);
         
-        // Manage state updates on the boundary utterances
         if (index === 0) {
             utterance.onstart = function() {
                 isSpeaking = true;
@@ -543,13 +497,11 @@ function speakResponse(text) {
             };
         }
         
-        // Handle end/error on the final segment of the queue
         if (index === segments.length - 1) {
             utterance.onend = function() {
                 isSpeaking = false;
                 logToConsole('Speech synthesis completed.');
                 
-                // In continuous mode, restart listening after a slight buffer delay
                 if (voiceContinuous) {
                     continuousRestartTimeout = setTimeout(function() {
                         startListening();
@@ -568,7 +520,6 @@ function speakResponse(text) {
                 }
             };
         } else {
-            // Intermediate segment error handling
             utterance.onerror = function(e) {
                 logToConsole('Speech synthesis error on segment ' + index + ': ' + e.error);
             };
@@ -606,14 +557,12 @@ function stopContinuousDialog() {
  */
 function toggleVoiceInput() {
     if (isListening) {
-        // If they click to turn off while listening, also cancel continuous mode
         if (voiceContinuous) {
             stopContinuousDialog();
         } else {
             stopListening();
         }
     } else {
-        // If speaking, interrupt speech synthesis
         if (window.speechSynthesis && window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
             isSpeaking = false;
@@ -631,7 +580,6 @@ function toggleContinuousMode() {
     
     if (voiceContinuous) {
         showToast('Голосовой авто-ответ включен');
-        // Instantly start listening if idle
         if (!isListening && !isSpeaking) {
             startListening();
         }
@@ -643,38 +591,11 @@ function toggleContinuousMode() {
 }
 
 /**
- * Cycles the selected input/output language: RU -> UA -> EN -> RU.
- */
-function cycleVoiceLanguage() {
-    if (voiceLanguage === 'RU') {
-        voiceLanguage = 'UA';
-    } else if (voiceLanguage === 'UA') {
-        voiceLanguage = 'EN';
-    } else {
-        voiceLanguage = 'RU';
-    }
-    
-    showToast('Язык озвучивания: ' + voiceLanguage);
-    logToConsole('Voice language changed to: ' + voiceLanguage);
-    
-    // Play sound in the new language to verify voice availability
-    var confirmationPhrases = {
-        'RU': 'Слушаю вас',
-        'UA': 'Слухаю вас',
-        'EN': 'I am listening'
-    };
-    
-    speakTextQuietly(confirmationPhrases[voiceLanguage]);
-    updateVoiceUI();
-}
-
-/**
  * Updates UI buttons state based on current voice properties.
  */
 function updateVoiceUI() {
     var micBtn = document.getElementById('voiceInputBtn');
     var loopBtn = document.getElementById('voiceContinuousBtn');
-    var langBtn = document.getElementById('voiceLangBtn');
     var promptInput = document.getElementById('promptInput');
     
     if (micBtn) {
@@ -697,18 +618,9 @@ function updateVoiceUI() {
         }
     }
     
-    if (langBtn) {
-        langBtn.textContent = voiceLanguage;
-    }
-    
     if (promptInput) {
         if (isListening) {
-            var listeningPlaceholders = {
-                'RU': '🎙️ Слушаю вас... Говорите',
-                'UA': '🎙️ Слухаю вас... Говоріть',
-                'EN': '🎙️ Listening... Speak now'
-            };
-            promptInput.placeholder = listeningPlaceholders[voiceLanguage] || '🎙️ Listening...';
+            promptInput.placeholder = '🎙️ Слушаю... / Listening...';
         } else {
             promptInput.placeholder = 'E.g.: Create composition "Intro", add a shape layer with a glowing red circle...';
         }
@@ -723,7 +635,6 @@ function initVoiceControl() {
     
     var micBtn = document.getElementById('voiceInputBtn');
     var loopBtn = document.getElementById('voiceContinuousBtn');
-    var langBtn = document.getElementById('voiceLangBtn');
     
     if (micBtn) {
         micBtn.addEventListener('click', toggleVoiceInput);
@@ -733,11 +644,6 @@ function initVoiceControl() {
         loopBtn.addEventListener('click', toggleContinuousMode);
     }
     
-    if (langBtn) {
-        langBtn.addEventListener('click', cycleVoiceLanguage);
-    }
-    
-    // Make sure voices are loaded by speech engine (Chrome loads them asynchronously)
     if (window.speechSynthesis && typeof window.speechSynthesis.getVoices === 'function') {
         window.speechSynthesis.getVoices();
     }
