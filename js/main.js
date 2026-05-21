@@ -136,6 +136,32 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Toggle Navigator Panel
+    var toggleNavigatorBtn = document.getElementById('toggleNavigator');
+    var navigatorPanel = document.getElementById('navigatorPanel');
+
+    if (toggleNavigatorBtn && navigatorPanel) {
+        toggleNavigatorBtn.addEventListener('click', function () {
+            navigatorPanel.classList.toggle('hidden');
+            toggleNavigatorBtn.classList.toggle('active');
+            if (!navigatorPanel.classList.contains('hidden')) {
+                if (typeof syncAEProjectNavigator === 'function') {
+                    syncAEProjectNavigator();
+                }
+            }
+        });
+    }
+
+    // Initialize Navigator Panel
+    if (typeof initNavigator === 'function') {
+        initNavigator();
+    }
+
+    // Initialize Voice Control Panel
+    if (typeof initVoiceControl === 'function') {
+        initVoiceControl();
+    }
+
     // Reload hotkeys listener (F5, Cmd+R, Ctrl+R)
     window.addEventListener('keydown', function (e) {
         if (e.key === 'F5' || ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R' || e.keyCode === 82))) {
@@ -162,11 +188,26 @@ async function handleGenerate() {
         return;
     }
 
+    // Stop active speech synthesis when starting a new generation
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+    }
+
     var inputEl = document.getElementById('promptInput');
     var promptText = inputEl.value.trim();
 
     // Prevent submission if completely empty
-    if (!promptText && attachedFiles.length === 0 && attachedContextItems.length === 0) {
+    if (!promptText && attachedFiles.length === 0 && attachedContextItems.length === 0 && !window.recordedAudioData) {
+        return;
+    }
+
+    // Route request to warning if audio input is present but model is Claude
+    var selectedModel = document.getElementById('modelSelect').value;
+    if (window.recordedAudioData && selectedModel.indexOf('claude-') === 0) {
+        if (typeof showToast === 'function') {
+            showToast('Голосовой ввод поддерживается только в моделях Gemini.');
+        }
+        window.recordedAudioData = null;
         return;
     }
 
@@ -217,10 +258,33 @@ async function handleGenerate() {
 
         // Format parts array for Gemini multimodal structure
         var userContentParts = [];
+        var wasVoiceInput = !!window.recordedAudioData;
 
         // Insert prompt or context text
-        var promptPayloadText = contextInfoText + (promptText || "Execute action based on attached layers.");
-        userContentParts.push({ text: promptPayloadText });
+        var promptPayloadText = contextInfoText + (promptText || "");
+
+        // Handle voice audio fallback inline data injection
+        if (window.recordedAudioData) {
+            userContentParts.push({
+                inlineData: {
+                    mimeType: window.recordedAudioData.mimeType,
+                    data: window.recordedAudioData.base64Data
+                }
+            });
+            var audioInstruction = "Слушай аудиофайл и выполни команду пользователя. ";
+            if (currentMode === 'execute') {
+                audioInstruction += "Напиши код ExtendScript (JSX) для After Effects, соответствующий голосовой команде.";
+            } else {
+                audioInstruction += "Ответь на вопрос пользователя, заданный голосом.";
+            }
+            promptPayloadText = (promptPayloadText ? promptPayloadText + "\n" : "") + audioInstruction;
+        } else if (!promptText) {
+            promptPayloadText = contextInfoText + "Execute action based on attached layers.";
+        }
+
+        if (promptPayloadText) {
+            userContentParts.push({ text: promptPayloadText });
+        }
 
         // Insert attached image base64 files
         attachedFiles.forEach(function (file) {
@@ -232,8 +296,9 @@ async function handleGenerate() {
             });
         });
 
-        // Save into global chat history
+        // Save into global chat history and reset buffer
         chatHistory.push({ role: 'user', parts: userContentParts });
+        window.recordedAudioData = null;
 
         // Update context tracker circle dashboard
         updateContextTracker();
@@ -246,12 +311,22 @@ async function handleGenerate() {
         var responseHTML = formatMarkdown(renderedText);
         
         // Создаем диалоговое облачко с запросом пользователя
+        var displayPrompt = promptText;
+        if (!displayPrompt) {
+            if (wasVoiceInput) {
+                var currentVoiceLang = (typeof voiceLanguage !== 'undefined') ? voiceLanguage : 'RU';
+                displayPrompt = "🎤 Голосовой запрос (" + currentVoiceLang + ")";
+            } else {
+                displayPrompt = "Изображение/Контекст";
+            }
+        }
+
         var promptBubble = '<div class="user-prompt-bubble">' +
             '<span class="prompt-icon" style="display:flex;align-items:center;">' +
             '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;">' +
             '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' +
             '</svg></span>' +
-            '<span class="prompt-text">' + (promptText || "Изображение/Контекст") + '</span>' +
+            '<span class="prompt-text">' + displayPrompt + '</span>' +
             '</div>';
         
         responseCard.innerHTML = promptBubble + responseHTML;
@@ -261,7 +336,13 @@ async function handleGenerate() {
         updateContextTracker();
 
         // 4. Save persistently into logs folder
-        saveToPersistentLog(promptText || "[Image/Context only]", responseText, currentMode === 'execute' ? 'SUCCESS (AGENT)' : 'CONSULT');
+        var logPrompt = promptText || (wasVoiceInput ? "[Voice Input]" : "[Image/Context only]");
+        saveToPersistentLog(logPrompt, responseText, currentMode === 'execute' ? 'SUCCESS (AGENT)' : 'CONSULT');
+
+        // Speak the response if the text-to-speech speaker is available
+        if (typeof speakResponse === 'function') {
+            speakResponse(responseText);
+        }
 
         // 5. In Agent mode, execute generated code in AE
         if (currentMode === 'execute') {

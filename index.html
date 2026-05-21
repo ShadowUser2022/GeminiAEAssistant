@@ -52,6 +52,14 @@
 				</svg>
 			</button>
 
+			<!-- Иконка открытия Навигатора (Компас) -->
+			<button id="toggleNavigator" class="secondary-btn icon-only-btn" title="Project Navigator" style="margin-right: 4px;">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="10"></circle>
+					<polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+				</svg>
+			</button>
+
 			<!-- Иконка открытия настроек в верхнем углу (Шестеренка) -->
 			<button id="toggleConsole" class="secondary-btn icon-only-btn" title="Settings & Logs">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -86,6 +94,31 @@
 
 		<!-- Dynamic Reference Chips Strip -->
 		<div id="contextChipsContainer" class="context-chips-container hidden"></div>
+
+		<!-- Premium AE Project & Composition Navigator (collapsible, hidden by default) -->
+		<div id="navigatorPanel" class="navigator-panel hidden">
+			<div class="navigator-header">
+				<div style="display: flex; align-items: center; gap: 6px;">
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="10"></circle>
+						<polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+					</svg>
+					<strong>AE Navigator Map</strong>
+				</div>
+				<button id="syncNavigatorBtn" class="navigator-sync-btn" title="Force Refresh">🔄 Sync</button>
+			</div>
+			
+			<!-- Breadcrumbs stack -->
+			<div id="navBreadcrumbs" class="nav-breadcrumbs-bar"></div>
+			
+			<div class="navigator-content-grid">
+				<!-- Active composition's layers tree -->
+				<div id="navActiveCompTree" class="navigator-tree-section"></div>
+				
+				<!-- All compositions list -->
+				<div id="navProjectComps" class="navigator-tree-section"></div>
+			</div>
+		</div>
 
 		<!-- Paste/Attach Images Strip -->
 		<div id="previewContainer" class="preview-strip hidden"></div>
@@ -140,6 +173,26 @@
 					<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
 				</svg>
 			</button>
+
+			<button id="voiceInputBtn" class="action-icon-btn voice-btn" title="Start Voice Input">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+					<path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+					<line x1="12" y1="19" x2="12" y2="23"></line>
+					<line x1="8" y1="23" x2="16" y2="23"></line>
+				</svg>
+			</button>
+
+			<button id="voiceContinuousBtn" class="action-icon-btn voice-loop-btn" title="Enable Continuous Dialog">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<polyline points="17 1 21 5 17 9"></polyline>
+					<path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+					<polyline points="7 23 3 19 7 15"></polyline>
+					<path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+				</svg>
+			</button>
+
+			<button id="voiceLangBtn" class="action-icon-btn voice-lang-btn" title="Cycle Voice Language">RU</button>
 		</div>
 
 		<!-- Hidden file upload input -->
@@ -233,6 +286,8 @@
 	<script src="js/api/gemini.js"></script>
 	<script src="js/api/imageGen.js"></script>
 	<script src="js/api/telegram.js"></script>
+	<script src="js/ui/navigator.js"></script>
+	<script src="js/ui/voice.js"></script>
 	<script src="js/main.js"></script>
 </body>
 

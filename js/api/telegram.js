@@ -628,8 +628,10 @@ function compressAndResizeImage(filePath, maxWidth) {
                 return reject(new Error('File is empty: ' + filePath));
             }
             
-            var base64Data = fileBuffer.toString('base64');
-            var dataUrl = 'data:image/png;base64,' + base64Data;
+            // Wrap Node.js Buffer in a browser-context Uint8Array for Blob compatibility
+            var uint8 = new Uint8Array(fileBuffer);
+            var blob = new Blob([uint8], { type: 'image/png' });
+            var objectUrl = URL.createObjectURL(blob);
             
             var img = new Image();
             img.onload = function () {
@@ -653,18 +655,31 @@ function compressAndResizeImage(filePath, maxWidth) {
                 var ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                canvas.toBlob(function (blob) {
-                    if (blob) {
-                        resolve(blob);
-                    } else {
-                        reject(new Error('Canvas toBlob failed'));
+                // Revoke object URL after image data is fully drawn on canvas
+                URL.revokeObjectURL(objectUrl);
+                
+                try {
+                    // Convert canvas to base64 and manually decode to Uint8Array/Blob
+                    // to prevent any CEF canvas.toBlob compatibility issues.
+                    var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    var base64Part = dataUrl.split(',')[1];
+                    var binaryString = atob(base64Part);
+                    var len = binaryString.length;
+                    var bytes = new Uint8Array(len);
+                    for (var i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
                     }
-                }, 'image/jpeg', 0.85);
+                    var resizedBlob = new Blob([bytes], { type: 'image/jpeg' });
+                    resolve(resizedBlob);
+                } catch (canvasErr) {
+                    reject(canvasErr);
+                }
             };
             img.onerror = function () {
+                URL.revokeObjectURL(objectUrl);
                 reject(new Error('Failed to load image into Image object'));
             };
-            img.src = dataUrl;
+            img.src = objectUrl;
         } catch (e) {
             reject(e);
         }
@@ -688,7 +703,8 @@ async function sendTelegramPhoto(filePath, caption) {
         logToConsole('Image compression failed, falling back to original PNG: ' + compressErr.message);
         var fs = require('fs');
         var fileBuffer = fs.readFileSync(filePath);
-        blob = new Blob([fileBuffer], { type: 'image/png' });
+        // Wrap Node.js Buffer in Uint8Array so browser context can construct a valid Blob
+        blob = new Blob([new Uint8Array(fileBuffer)], { type: 'image/png' });
     }
 
     var formData = new FormData();
@@ -699,16 +715,27 @@ async function sendTelegramPhoto(filePath, caption) {
     formData.append('photo', blob, filename);
 
     var url = `https://api.telegram.org/bot${telegramToken}/sendPhoto`;
-    var response = await fetch(url, {
-        method: 'POST',
-        body: formData
-    });
+    try {
+        var response = await fetch(url, {
+            method: 'POST',
+            body: formData
+        });
 
-    var data = await response.json();
-    if (!response.ok) {
-        throw new Error(data.description || 'Telegram API returned HTTP ' + response.status);
+        var data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.description || 'Telegram API returned HTTP ' + response.status);
+        }
+        logToConsole('Telegram photo uploaded successfully.');
+    } finally {
+        try {
+            var fs = require('fs');
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        } catch (unlinkErr) {
+            logToConsole('Temp file deletion failed: ' + unlinkErr.message);
+        }
     }
-    logToConsole('Telegram photo uploaded successfully.');
 }
 
 /**
@@ -727,8 +754,8 @@ async function sendTelegramDocument(filePath, caption) {
     var fileName = path.basename(filePath);
     var fileBuffer = fs.readFileSync(filePath);
     
-    // Resolve mime type or use default stream octet
-    var blob = new Blob([fileBuffer], { type: 'application/octet-stream' });
+    // Wrap Node.js Buffer in Uint8Array so browser context can construct a valid Blob
+    var blob = new Blob([new Uint8Array(fileBuffer)], { type: 'application/octet-stream' });
 
     var formData = new FormData();
     formData.append('chat_id', telegramChatId);

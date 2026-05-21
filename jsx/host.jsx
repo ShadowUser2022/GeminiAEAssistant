@@ -262,6 +262,9 @@
             
             var currentTime = activeComp.time;
             var fileObj = new File(outputPath);
+            if (fileObj.exists) {
+                fileObj.remove();
+            }
             activeComp.saveFrameToPng(currentTime, fileObj);
             
             if (!fileObj.exists) {

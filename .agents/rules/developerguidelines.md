@@ -21,3 +21,8 @@ description: "Development standards, ES3 safety, and design rules for GeminiAEAs
 *   **Color Palette:** Use deep cosmic black (`#0d0f12`) as the main background and neon amethyst (`#a78bfa`) as the primary accent color.
 *   **Glassmorphism:** Apply premium translucent glass effects using `background: rgba(...)` combined with `backdrop-filter: blur(...)`.
 *   **Micro-animations:** Incorporate smooth transition effects and glow shadows for interactive states to maintain a premium feel.
+
+## 4. Concurrent Agent Safety (Multi-Agent Isolation)
+*   **No Overlapping Edits:** AI agents must never modify the same file or edit the same function concurrently.
+*   **Check Git State:** Before making any file changes, run `git status` to verify there are no active uncommitted modifications from other agents.
+*   **Strict Scoping:** Only modify files directly related to your current task branch. Do not touch adjacent modules being edited by other agents.

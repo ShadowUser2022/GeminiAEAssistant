@@ -140,3 +140,34 @@ Because the modules share globals, they **must** be loaded in `index.html` in th
 8.  `api/gemini.js` (Gemini text model fetching)
 9.  `api/imageGen.js` (Gemini/Pollinations image drawing)
 10. `main.js` (Entry point, event bindings)
+
+---
+
+## 🛠️ Git & Development Workflow
+
+To maintain a professional, clean, and highly stable codebase, the project follows a strict branch-based isolation strategy. Direct commits to `main` are reserved only for integration and final verified releases.
+
+### 🌿 Branch Classifications
+
+*   🎨 **`design`**: Dedicated strictly to UI, UX, vanilla CSS styling, layout modifications, theme variables, glassmorphic styles, and micro-animations.
+*   📱 **`telegram-remote-control`**: Dedicated to implementing, debugging, and refining Telegram Bot remote integration, remote execution, screen capturing, and remote model switching.
+*   🐞 **`debugging`**: Dedicated to diagnostics, console logs, error boundary refinements, performance monitoring, and hot-reload adjustments.
+*   🚀 **`features/`**: The standard prefix for introducing any entirely new application modules, capabilities, or user workflows (e.g., custom preset managers).
+
+### 🔄 Integration Flow (Minimalist & Professional)
+
+1.  **Isolate**: Always switch to the respective branch matching the scope of your edits (`git checkout design`, `git checkout telegram-remote-control`, etc.).
+2.  **Verify**: Perform manual and automated tests locally in After Effects to ensure zero runtime regressions.
+3.  **Merge & Commit**: Merge development branches into `main` and draft a descriptive, minimalist commit message.
+4.  **Publish**: Push verified changes up to the remote repository.
+
+---
+
+### 🤝 Правила совместной работы агентов (Agent Cooperation & Concurrency Policy)
+
+Для исключения конфликтов при параллельной работе нескольких ИИ-агентов (Cursor, Windsurf, Antigravity) в одном проекте:
+
+1. **Блокировка файлов (File Locking)**: Агенту запрещено редактировать файл или конкретную функцию, если над этим же компонентом параллельно ведет работу другой агент.
+2. **Изоляция по веткам (Branch Isolation)**: Параллельные задачи должны выполняться строго на соответствующих ветках (`design`, `telegram-remote-control`, `debugging`, `features/`). Редактирование одного файла на разных ветках одновременно не допускается.
+3. **Проверка состояния (Pre-edit Check)**: Перед любым изменением агент обязан выполнить `git status` или проверить дифф, чтобы убедиться, что файл не был изменен внешним процессом в процессе сессии.
+4. **Координация пользователем (User Orchestration)**: Пользователь выступает главным арбитром блокировок. Утверждение кода командами (`apply`/`agreed`) происходит последовательно, по очереди для каждого агента.
