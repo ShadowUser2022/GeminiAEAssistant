@@ -125,6 +125,8 @@ async function pollTelegramUpdates() {
                 
                 if (update.message) {
                     await handleTelegramMessage(update.message);
+                } else if (update.callback_query) {
+                    await handleTelegramCallbackQuery(update.callback_query);
                 }
             }
         }
@@ -164,6 +166,7 @@ async function handleTelegramMessage(message) {
                       "Используйте кнопки меню ниже или вводите команды вручную:\n" +
                       "📊 `/status` — Характеристики active-проекта и композиции\n" +
                       "📸 `/screen` — Скриншот текущего кадра таймлайна\n" +
+                      "🧭 `/nav` — Навигация по таймлайну и precomp-слоям\n" +
                       "🎬 `/render` — Рендеринг active-проекта в видеофайл\n" +
                       "❓ `/ask <вопрос>` — Задать вопрос ИИ без изменения проекта\n" +
                       "⚡️ `/run <промпт>` — Сгенерировать и запустить код (с авто-скриншотом)\n" +
@@ -176,6 +179,10 @@ async function handleTelegramMessage(message) {
     else if (text.startsWith('/status') || text === '📊 Статус') {
         tgSessionMode = 'default';
         await handleStatusCommand();
+    } 
+    else if (text.startsWith('/nav') || text === '🧭 Навигация') {
+        tgSessionMode = 'default';
+        await handleNavigationCommand();
     } 
     else if (text.startsWith('/model') || text === '⚙️ Сменить модель') {
         tgSessionMode = 'default';
@@ -373,12 +380,6 @@ async function handleRenderCommand() {
             return;
         }
         
-        // Clean comp name for a safe filename (letters, numbers, spaces, underscores, hyphens, and Cyrillic allowed)
-        var cleanCompName = compName.replace(/[^a-zA-Z0-9_\-\sА-Яа-яЁё]/g, '_').trim();
-        if (!cleanCompName) {
-            cleanCompName = "render";
-        }
-        
         var path = require('path');
         var fs = require('fs');
         
@@ -392,32 +393,17 @@ async function handleRenderCommand() {
             targetDir = path.join(extensionDir, 'logs');
         }
         
-        // Construct unique filename (incremental counter)
-        var extension = ".mov";
-        var finalFileName = cleanCompName + extension;
-        var targetFilePath = path.join(targetDir, finalFileName);
-        var counter = 1;
-        
-        while (fs.existsSync(targetFilePath)) {
-            finalFileName = cleanCompName + "_" + counter + extension;
-            targetFilePath = path.join(targetDir, finalFileName);
-            counter++;
-        }
-        
         await sendTelegramMessage(`🎬 Запускаю рендер композиции *${compName}*...\n` +
-                                  `📍 Путь сохранения: Рабочий стол (\`${finalFileName}\`)\n` +
+                                  `📍 Место сохранения: Рабочий стол\n` +
                                   `⏳ Пожалуйста, подождите (интерфейс AE может временно зависнуть)...`);
 
-        var escapedPath = targetFilePath.replace(/\\/g, '\\\\');
+        var escapedTargetDir = targetDir.replace(/\\/g, '\\\\');
 
-        csInterface.evalScript(`triggerActiveCompRender("${escapedPath}")`, async function (result) {
+        csInterface.evalScript(`triggerActiveCompRender("${escapedTargetDir}")`, async function (result) {
             if (result && result.indexOf('Success') !== -1) {
                 try {
-                    // Extract the actual file path returned by ExtendScript (since AE could auto-adjust the file extension)
-                    var actualRenderedPath = targetFilePath;
-                    if (result.indexOf('Success: ') === 0) {
-                        actualRenderedPath = result.substring(9).trim();
-                    }
+                    // Extract the actual file path returned by ExtendScript (Success: Render complete at /path/to/file)
+                    var actualRenderedPath = result.replace("Success: Render complete at ", "").trim();
                     
                     // Check file size for Telegram limits
                     var fileStats = fs.statSync(actualRenderedPath);
@@ -573,14 +559,17 @@ async function handleRemotePromptCommand(promptText) {
         }
 
         // Run in AE
-        executeInAE(responseText);
-
-        await sendTelegramMessage("✅ Код успешно сгенерирован и выполнен в After Effects! Создаю скриншот результата...");
-        
-        // Take screenshot of output automatically
-        setTimeout(async function () {
-            await handleScreenshotCommand();
-        }, 1500);
+        executeInAE(responseText, async function (execResult) {
+            if (execResult.success) {
+                await sendTelegramMessage("✅ Код успешно сгенерирован и выполнен в After Effects! Создаю скриншот результата...");
+                // Take screenshot of output automatically
+                setTimeout(async function () {
+                    await handleScreenshotCommand();
+                }, 500);
+            } else {
+                await sendTelegramMessage(`❌ Ошибка выполнения скрипта: ${execResult.error}`);
+            }
+        });
 
     } catch (err) {
         logToConsole('Remote prompt error: ' + err.message);
@@ -610,9 +599,8 @@ async function sendTelegramMessage(text) {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     keyboard: [
-                        [{"text": "📊 Статус"}, {"text": "📸 Скриншот"}],
-                        [{"text": "🎬 Рендер"}, {"text": "ℹ️ Помощь"}],
-                        [{"text": "❓ Задать вопрос"}, {"text": "⚡️ Запустить промпт"}],
+                        [{"text": "📊 Статус"}, {"text": "📸 Скриншот"}, {"text": "🧭 Навигация"}],
+                        [{"text": "🎬 Рендер"}, {"text": "❓ Задать вопрос"}, {"text": "⚡️ Запустить промпт"}],
                         [{"text": "⚙️ Сменить модель"}, {"text": "📖 Инструкция"}, {"text": "🔄 Перезапуск"}]
                     ],
                     resize_keyboard: true
@@ -625,7 +613,67 @@ async function sendTelegramMessage(text) {
 }
 
 /**
+ * Reads a local image, resizes it using an offscreen canvas, and compresses it to JPEG.
+ * Returns a Promise that resolves to a Blob.
+ */
+function compressAndResizeImage(filePath, maxWidth) {
+    return new Promise(function (resolve, reject) {
+        var fs = require('fs');
+        try {
+            if (!fs.existsSync(filePath)) {
+                return reject(new Error('File not found: ' + filePath));
+            }
+            var fileBuffer = fs.readFileSync(filePath);
+            if (!fileBuffer || fileBuffer.length === 0) {
+                return reject(new Error('File is empty: ' + filePath));
+            }
+            
+            var base64Data = fileBuffer.toString('base64');
+            var dataUrl = 'data:image/png;base64,' + base64Data;
+            
+            var img = new Image();
+            img.onload = function () {
+                var width = img.width;
+                var height = img.height;
+                
+                if (width > maxWidth || height > maxWidth) {
+                    if (width > height) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    } else {
+                        width = Math.round((width * maxWidth) / height);
+                        height = maxWidth;
+                    }
+                }
+                
+                var canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob(function (blob) {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error('Canvas toBlob failed'));
+                    }
+                }, 'image/jpeg', 0.85);
+            };
+            img.onerror = function () {
+                reject(new Error('Failed to load image into Image object'));
+            };
+            img.src = dataUrl;
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+/**
  * Uploads a local image file directly via Telegram Bot multi-part form.
+ * Automatically resizes and compresses the image to a compact JPEG.
  *
  * @param {string} filePath - Absolute path to local PNG file.
  * @param {string} caption - Photo text caption.
@@ -633,20 +681,33 @@ async function sendTelegramMessage(text) {
 async function sendTelegramPhoto(filePath, caption) {
     if (!telegramToken || !telegramChatId) return;
 
-    var fs = require('fs');
-    var fileBuffer = fs.readFileSync(filePath);
-    var blob = new Blob([fileBuffer], { type: 'image/png' });
+    var blob;
+    try {
+        blob = await compressAndResizeImage(filePath, 1280);
+    } catch (compressErr) {
+        logToConsole('Image compression failed, falling back to original PNG: ' + compressErr.message);
+        var fs = require('fs');
+        var fileBuffer = fs.readFileSync(filePath);
+        blob = new Blob([fileBuffer], { type: 'image/png' });
+    }
 
     var formData = new FormData();
     formData.append('chat_id', telegramChatId);
     formData.append('caption', caption);
-    formData.append('photo', blob, 'screenshot.png');
+
+    var filename = blob.type === 'image/jpeg' ? 'screenshot.jpg' : 'screenshot.png';
+    formData.append('photo', blob, filename);
 
     var url = `https://api.telegram.org/bot${telegramToken}/sendPhoto`;
-    await fetch(url, {
+    var response = await fetch(url, {
         method: 'POST',
         body: formData
     });
+
+    var data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.description || 'Telegram API returned HTTP ' + response.status);
+    }
     logToConsole('Telegram photo uploaded successfully.');
 }
 
@@ -684,4 +745,205 @@ async function sendTelegramDocument(filePath, caption) {
         throw new Error(data.description || 'Unknown API upload error');
     }
     logToConsole('Telegram document uploaded successfully.');
+}
+
+/**
+ * Answers a Telegram callback query to dismiss the loading state on the button.
+ */
+async function answerCallbackQuery(callbackQueryId, text) {
+    if (!telegramToken) return;
+    var url = "https://api.telegram.org/bot" + telegramToken + "/answerCallbackQuery";
+    try {
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                callback_query_id: callbackQueryId,
+                text: text || ''
+            })
+        });
+    } catch (err) {
+        logToConsole('TG answerCallbackQuery failed: ' + err.message);
+    }
+}
+
+/**
+ * Handles incoming inline keyboard button presses.
+ */
+async function handleTelegramCallbackQuery(callbackQuery) {
+    var data = callbackQuery.data;
+    var queryId = callbackQuery.id;
+    if (!data) return;
+
+    logToConsole("Telegram callback query received: " + data);
+
+    if (data.startsWith('nav_comp_idx:')) {
+        var compIndex = parseInt(data.split(':')[1], 10);
+        await answerCallbackQuery(queryId, "Обновляю статус...");
+        
+        if (compIndex === -1) {
+            await handleNavigationCommand();
+            return;
+        }
+        
+        csInterface.evalScript("switchActiveCompositionByIndex(" + compIndex + ")", async function(result) {
+            try {
+                var res = JSON.parse(result);
+                if (res.success) {
+                    await sendTelegramMessage("✅ Композиция успешно переключена!");
+                    await handleNavigationCommand();
+                    setTimeout(async function() {
+                        await handleScreenshotCommand();
+                    }, 1000);
+                } else {
+                    await sendTelegramMessage("❌ Не удалось переключить композицию: " + res.error);
+                }
+            } catch(e) {
+                await sendTelegramMessage("❌ Ошибка выполнения команды переключения композиции.");
+            }
+        });
+    } else if (data.startsWith('nav_layer_idx:')) {
+        var parts = data.split(':');
+        var compIndex = parts[1];
+        var layerIndex = parts[2];
+        await answerCallbackQuery(queryId, "Фокусирую слой...");
+        
+        csInterface.evalScript("selectAndFocusLayerByIndex(" + compIndex + ", " + layerIndex + ")", async function(result) {
+            try {
+                var res = JSON.parse(result);
+                if (res.success) {
+                    await sendTelegramMessage("✅ Слой выбран и сфокусирован на таймлайне!");
+                    setTimeout(async function() {
+                        await handleScreenshotCommand();
+                    }, 1000);
+                } else {
+                    await sendTelegramMessage("❌ Не удалось сфокусировать слой: " + res.error);
+                }
+            } catch(e) {
+                await sendTelegramMessage("❌ Ошибка выполнения команды фокусировки слоя.");
+            }
+        });
+    }
+}
+
+/**
+ * Fetches current AE navigation structure and sends an inline keyboard to Telegram.
+ */
+async function handleNavigationCommand() {
+    await sendTelegramMessage("⏳ Запрашиваю структуру проекта...");
+
+    csInterface.evalScript('getRemoteNavigationData()', async function(result) {
+        try {
+            var data = JSON.parse(result);
+            if (!data.success) {
+                await sendTelegramMessage("❌ Не удалось получить структуру проекта: " + data.error);
+                return;
+            }
+
+            var text = "🧭 *Удаленная навигация по проекту After Effects*\n\n";
+            
+            if (data.activeCompIndex === -1 || !data.activeCompName || data.activeCompName === "null") {
+                text += "⚠️ *Активная композиция не выбрана на таймлайне.*\n\n" +
+                        "Пожалуйста, откройте любую композицию в After Effects на компьютере, чтобы начать навигацию.";
+                
+                var inlineKeyboard = [[
+                    {
+                        text: "🔄 Обновить статус",
+                        callback_data: "nav_comp_idx:-1"
+                    }
+                ]];
+                await sendTelegramInlineKeyboard(text, inlineKeyboard);
+                return;
+            }
+
+            text += "🎞 *Текущая композиция:* `" + data.activeCompName + "` (Индекс: " + data.activeCompIndex + ")\n\n";
+
+            if (data.parents && data.parents.length > 0) {
+                text += "*Родительские композиции (Выйти вверх):*\n";
+                for (var i = 0; i < data.parents.length; i++) {
+                    text += "• `" + data.parents[i].name + "` (Индекс: " + data.parents[i].index + ")\n";
+                }
+                text += "\n";
+            } else {
+                text += "*Родительские композиции:* Отсутствуют (это корневая композиция проекта).\n\n";
+            }
+
+            if (data.preComps && data.preComps.length > 0) {
+                text += "*Вложенные pre-comp слои:*\n";
+                for (var i = 0; i < data.preComps.length; i++) {
+                    var pc = data.preComps[i];
+                    text += "• Слой *" + pc.layerIndex + "* (`" + pc.layerName + "`) ➔ Комп: `" + pc.compName + "` (Индекс: " + pc.compIndex + ")\n";
+                }
+            } else {
+                text += "*Вложенные pre-comp слои:* Отсутствуют в этой композиции.\n";
+            }
+
+            var inlineKeyboard = [];
+
+            if (data.parents && data.parents.length > 0) {
+                for (var i = 0; i < data.parents.length; i++) {
+                    var p = data.parents[i];
+                    inlineKeyboard.push([
+                        {
+                            text: "⬆️ Выйти в: " + p.name,
+                            callback_data: "nav_comp_idx:" + p.index
+                        }
+                    ]);
+                }
+            }
+
+            if (data.preComps && data.preComps.length > 0) {
+                for (var i = 0; i < data.preComps.length; i++) {
+                    var pc = data.preComps[i];
+                    inlineKeyboard.push([
+                        {
+                            text: "🔍 Focus L" + pc.layerIndex,
+                            callback_data: "nav_layer_idx:" + data.activeCompIndex + ":" + pc.layerIndex
+                        },
+                        {
+                            text: "📂 Open: " + pc.compName,
+                            callback_data: "nav_comp_idx:" + pc.compIndex
+                        }
+                    ]);
+                }
+            }
+
+            inlineKeyboard.push([
+                {
+                    text: "🔄 Обновить карту",
+                    callback_data: "nav_comp_idx:" + data.activeCompIndex
+                }
+            ]);
+
+            await sendTelegramInlineKeyboard(text, inlineKeyboard);
+
+        } catch (err) {
+            await sendTelegramMessage("❌ Ошибка обработки структуры проекта: " + err.message);
+        }
+    });
+}
+
+/**
+ * Sends a message with an inline keyboard markup.
+ */
+async function sendTelegramInlineKeyboard(text, inlineKeyboard) {
+    if (!telegramToken || !telegramChatId) return;
+
+    var url = "https://api.telegram.org/bot" + telegramToken + "/sendMessage";
+    try {
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: telegramChatId,
+                text: text,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: inlineKeyboard
+                }
+            })
+        });
+    } catch (err) {
+        logToConsole('TG Send inline keyboard failed: ' + err.message);
+    }
 }

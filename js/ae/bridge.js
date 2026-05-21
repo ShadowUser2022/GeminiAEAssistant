@@ -22,7 +22,7 @@
  *
  * @param {string} code - Raw ExtendScript (JSX) code to execute in AE.
  */
-function executeInAE(code) {
+function executeInAE(code, callback) {
     if (code) {
         // Auto-correct common effect MatchName hallucinations (e.g. ADBE Keylight -> Keylight (1.2))
         code = code.replace(/["']ADBE Keylight["']/g, '"Keylight (1.2)"');
@@ -45,8 +45,9 @@ function executeInAE(code) {
     var encodedCode = btoa(unescape(encodeURIComponent(code)));
 
     csInterface.evalScript('evaluateAIGeneratedCode("' + encodedCode + '")', function (result) {
+        var parsedResult = { success: false, error: 'Unknown error' };
         try {
-            var parsedResult = JSON.parse(result);
+            parsedResult = JSON.parse(result);
             if (parsedResult.success) {
                 logToConsole('Executed successfully.');
                 setStatus('Ready.', false);
@@ -61,6 +62,10 @@ function executeInAE(code) {
         } catch (e) {
             logToConsole('Raw Eval Result: ' + result);
             setStatus('Ready.', false);
+            parsedResult = { success: false, error: e.message || String(e) };
+        }
+        if (typeof callback === 'function') {
+            callback(parsedResult);
         }
     });
 }

@@ -274,13 +274,15 @@
     };
 
     /**
-     * Adds the current active composition to the render queue, sets the output file path, and renders.
+     * Adds the current active composition to the render queue, sets the output file path to a unique name
+     * under the target directory (detecting the extension automatically from the active render settings),
+     * and triggers the render.
      * 
      * @global
-     * @param {string} outputPath - Absolute path for output.
-     * @returns {string} Success or error string.
+     * @param {string} targetDirStr - Absolute path to target directory (e.g. macOS Desktop).
+     * @returns {string} Success message with actual path, or error string.
      */
-    triggerActiveCompRender = function (outputPath) {
+    triggerActiveCompRender = function (targetDirStr) {
         try {
             var activeComp = app.project.activeItem;
             if (!activeComp || activeComp.typeName !== "Composition") {
@@ -291,24 +293,53 @@
             var rqItem = app.project.renderQueue.items.add(activeComp);
             var outputModule = rqItem.outputModule(1);
             
-            // Set output file
-            var fileObj = new File(outputPath);
-            outputModule.file = fileObj;
-            
-            // Get actual file path because AE might change the file extension based on output module template
-            var actualFile = outputModule.file;
-            
-            // Execute Render
-            app.project.renderQueue.render();
-            
-            if (!actualFile.exists) {
-                if (fileObj.exists) {
-                    actualFile = fileObj;
-                } else {
-                    return "Error: Render completed but output file not found on disk. Tried: " + actualFile.fsName;
+            // Clean composition name for a safe filename (letters, numbers, spaces, underscores, hyphens, and Cyrillic)
+            var compName = activeComp.name;
+            var cleanCompName = compName.replace(/[^a-zA-Z0-9_\-\s\u0410-\u042F\u0430-\u044F\u0401\u0451]/g, "_");
+            cleanCompName = cleanCompName.replace(/^\s+|\s+$/g, ""); // trim
+            if (!cleanCompName) {
+                cleanCompName = "render";
+            }
+
+            // Determine output extension automatically from AE's default assignment
+            var extension = ".mov"; // Fallback
+            if (outputModule.file) {
+                var aeFileName = outputModule.file.name;
+                var dotIndex = aeFileName.lastIndexOf(".");
+                if (dotIndex !== -1) {
+                    extension = aeFileName.substring(dotIndex);
                 }
             }
-            return "Success: " + actualFile.fsName;
+            
+            // Set up target directory Folder object
+            var targetFolder = new Folder(targetDirStr);
+            if (!targetFolder.exists) {
+                if (outputModule.file && outputModule.file.parent) {
+                    targetFolder = outputModule.file.parent;
+                } else {
+                    targetFolder = Folder.desktop;
+                }
+            }
+            
+            // Increment file name to avoid overwrite prompt
+            var finalFileName = cleanCompName + extension;
+            var finalFile = new File(targetFolder.fsName + "/" + finalFileName);
+            var counter = 1;
+            
+            while (finalFile.exists) {
+                finalFileName = cleanCompName + "_" + counter + extension;
+                finalFile = new File(targetFolder.fsName + "/" + finalFileName);
+                counter++;
+            }
+            
+            // Set output path and render
+            outputModule.file = finalFile;
+            app.project.renderQueue.render();
+            
+            if (!finalFile.exists) {
+                return "Error: Render completed but output file not found on disk.";
+            }
+            return "Success: Render complete at " + finalFile.fsName;
         } catch (e) {
             return "Error: " + e.toString();
         }
@@ -316,6 +347,7 @@
 
     /**
      * Gathers a list of compositions and nested pre-compositions inside the active composition.
+     * Includes try/catch to safely handle camera/light layers that do not support .source.
      * 
      * @global
      * @returns {string} JSON-formatted tree map.
@@ -332,12 +364,16 @@
                 var preCompsList = [];
                 for (var i = 1; i <= activeComp.layers.length; i++) {
                     var layer = activeComp.layers[i];
-                    if (layer.source && layer.source instanceof CompItem) {
-                        preCompsList.push("{" +
-                            "\"name\":\"" + escapeString(layer.name) + "\"," +
-                            "\"index\":" + layer.index + "," +
-                            "\"compName\":\"" + escapeString(layer.source.name) + "\"" +
-                        "}");
+                    try {
+                        if (layer.source && layer.source instanceof CompItem) {
+                            preCompsList.push("{" +
+                                "\"name\":\"" + escapeString(layer.name) + "\"," +
+                                "\"index\":" + layer.index + "," +
+                                "\"compName\":\"" + escapeString(layer.source.name) + "\"" +
+                            "}");
+                        }
+                    } catch (layerErr) {
+                        // Safe ignore if accessing layer.source throws on non-AVLayer types
                     }
                 }
                 preCompsData = "[" + preCompsList.join(",") + "]";
@@ -387,6 +423,7 @@
 
     /**
      * Programmatically opens a composition, deselects other layers, selects the specified layer index, and focuses the timeline.
+     * Skips locked layers to prevent ExtendScript errors.
      * 
      * @global
      * @param {string} compName - The composition name.
@@ -415,15 +452,169 @@
                 return "{\"success\":false,\"error\":\"Layer not found at index: " + layerIndex + "\"}";
             }
             
-            // Deselect all
+            // Deselect all non-locked layers
             for (var j = 1; j <= compItem.layers.length; j++) {
-                compItem.layers[j].selected = false;
+                if (!compItem.layers[j].locked) {
+                    compItem.layers[j].selected = false;
+                }
             }
             
-            // Select our target layer
-            layer.selected = true;
+            // Select our target layer if it's not locked
+            if (!layer.locked) {
+                layer.selected = true;
+            }
             
             // Force Timeline window focus
+            var timelineCmdId = app.findMenuCommandId("Timeline");
+            if (timelineCmdId) {
+                app.executeCommand(timelineCmdId);
+            }
+            
+            return "{\"success\":true}";
+        } catch (e) {
+            return "{\"success\":false,\"error\":\"" + escapeString(e.toString()) + "\"}";
+        }
+    };
+
+    /**
+     * Helper to find the index of a project item.
+     */
+    function getItemProjectIndex(item) {
+        for (var i = 1; i <= app.project.numItems; i++) {
+            if (app.project.item(i) === item) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Gathers navigation data for the remote Telegram Bot.
+     * Includes active composition, parent compositions, and nested pre-compositions.
+     * 
+     * @global
+     * @returns {string} JSON-formatted navigation details.
+     */
+    getRemoteNavigationData = function () {
+        try {
+            var activeComp = app.project.activeItem;
+            var activeCompName = "null";
+            var activeCompIndex = -1;
+            var parentsData = "[]";
+            var preCompsData = "[]";
+            
+            if (activeComp && activeComp.typeName === "Composition") {
+                activeCompName = activeComp.name;
+                activeCompIndex = getItemProjectIndex(activeComp);
+                
+                // Find parent compositions (where activeComp is used as precomp)
+                var parentsList = [];
+                for (var i = 1; i <= app.project.numItems; i++) {
+                    var item = app.project.item(i);
+                    if (item instanceof CompItem && item !== activeComp) {
+                        for (var j = 1; j <= item.layers.length; j++) {
+                            try {
+                                var layer = item.layers[j];
+                                if (layer.source && layer.source === activeComp) {
+                                    parentsList.push("{" +
+                                        "\"name\":\"" + escapeString(item.name) + "\"," +
+                                        "\"index\":" + i +
+                                    "}");
+                                    break; // Found in this composition, move to next item
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+                parentsData = "[" + parentsList.join(",") + "]";
+                
+                // Find nested pre-compositions inside the active composition
+                var preCompsList = [];
+                for (var i = 1; i <= activeComp.layers.length; i++) {
+                    try {
+                        var layer = activeComp.layers[i];
+                        if (layer.source && layer.source instanceof CompItem) {
+                            var targetIndex = getItemProjectIndex(layer.source);
+                            preCompsList.push("{" +
+                                "\"layerName\":\"" + escapeString(layer.name) + "\"," +
+                                "\"layerIndex\":" + layer.index + "," +
+                                "\"compName\":\"" + escapeString(layer.source.name) + "\"," +
+                                "\"compIndex\":" + targetIndex +
+                            "}");
+                        }
+                    } catch (e) {}
+                }
+                preCompsData = "[" + preCompsList.join(",") + "]";
+            }
+            
+            return "{" +
+                "\"success\":true," +
+                "\"activeCompName\":\"" + escapeString(activeCompName) + "\"," +
+                "\"activeCompIndex\":" + activeCompIndex + "," +
+                "\"parents\":" + parentsData + "," +
+                "\"preComps\":" + preCompsData +
+            "}";
+        } catch (e) {
+            return "{\"success\":false,\"error\":\"" + escapeString(e.toString()) + "\"}";
+        }
+    };
+
+    /**
+     * Programmatically switches the active composition by project item index.
+     * 
+     * @global
+     * @param {number} itemIndex - Project item index (1-indexed).
+     * @returns {string} JSON status.
+     */
+    switchActiveCompositionByIndex = function (itemIndex) {
+        try {
+            var item = app.project.item(Number(itemIndex));
+            if (item && item instanceof CompItem) {
+                item.openInViewer();
+                return "{\"success\":true}";
+            }
+            return "{\"success\":false,\"error\":\"Composition not found at index: \" + itemIndex}";
+        } catch (e) {
+            return "{\"success\":false,\"error\":\"" + escapeString(e.toString()) + "\"}";
+        }
+    };
+
+    /**
+     * Focuses and selects a specific layer index inside a target composition.
+     * Skips locked layers to prevent ExtendScript errors.
+     * 
+     * @global
+     * @param {number} compIndex - Project item index of the composition.
+     * @param {number} layerIndex - Layer index (1-indexed).
+     * @returns {string} JSON status.
+     */
+    selectAndFocusLayerByIndex = function (compIndex, layerIndex) {
+        try {
+            var compItem = app.project.item(Number(compIndex));
+            if (!compItem || !(compItem instanceof CompItem)) {
+                return "{\"success\":false,\"error\":\"Composition not found at index: \" + compIndex}";
+            }
+            
+            compItem.openInViewer();
+            
+            var layer = compItem.layer(Number(layerIndex));
+            if (!layer) {
+                return "{\"success\":false,\"error\":\"Layer not found at index: \" + layerIndex}";
+            }
+            
+            // Deselect all non-locked layers
+            for (var j = 1; j <= compItem.layers.length; j++) {
+                if (!compItem.layers[j].locked) {
+                    compItem.layers[j].selected = false;
+                }
+            }
+            
+            // Select the target layer
+            if (!layer.locked) {
+                layer.selected = true;
+            }
+            
+            // Focus Timeline
             var timelineCmdId = app.findMenuCommandId("Timeline");
             if (timelineCmdId) {
                 app.executeCommand(timelineCmdId);
