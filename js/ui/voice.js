@@ -108,6 +108,9 @@ function detectSegmentLang(text) {
 
 async function startMediaRecorderListening() {
     if (isListening) return;
+    
+    isListening = true;
+    updateVoiceUI();
     audioChunks = [];
     
     try {
@@ -141,8 +144,6 @@ async function startMediaRecorderListening() {
         };
         
         mediaRecorder.onstart = function() {
-            isListening = true;
-            updateVoiceUI();
             playVoiceBeep(880, 0.08); // High pitch beep for activation
             logToConsole('Audio recording started (MediaRecorder, mimeType: ' + (options.mimeType || 'default') + ')...');
             setupSilenceDetection(audioStream);
@@ -151,6 +152,9 @@ async function startMediaRecorderListening() {
         mediaRecorder.onstop = async function() {
             logToConsole('Audio recording stopped. Processing audio...');
             var mimeType = options.mimeType || mediaRecorder.mimeType || 'audio/webm';
+            
+            isListening = false;
+            updateVoiceUI();
             
             if (audioStream) {
                 var tracks = audioStream.getTracks();
@@ -164,8 +168,6 @@ async function startMediaRecorderListening() {
             
             if (audioChunks.length === 0) {
                 logToConsole('No audio data captured.');
-                isListening = false;
-                updateVoiceUI();
                 return;
             }
             

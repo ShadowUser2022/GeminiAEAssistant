@@ -330,12 +330,48 @@ async function handleStatusCommand() {
  * Triggers JSX playhead frame exporter and uploads the PNG.
  */
 async function handleScreenshotCommand() {
-    await sendTelegramMessage("📸 Делаю скриншот таймлайна...");
+    var isCompleted = false;
 
-    csInterface.evalScript('exportActiveFrameToPath("")', async function (result) {
+    // Уведомляем пользователя только в том случае, если операция занимает больше 10 секунд
+    var notifyTimer = setTimeout(async function () {
+        if (!isCompleted) {
+            await sendTelegramMessage("⏳ Создание скриншота занимает более 10 секунд. Пожалуйста, подождите...");
+        }
+    }, 10000);
+
+    var path = require('path');
+    var extensionDir = csInterface.getSystemPath(SystemPath.EXTENSION);
+    var tempPath = path.join(extensionDir, 'logs', 'ae_telegram_screen_' + Date.now() + '.png');
+    var escapedTempPath = tempPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+    csInterface.evalScript("exportActiveFrameToPath('" + escapedTempPath + "')", async function (result) {
+        isCompleted = true;
+        clearTimeout(notifyTimer);
+
         if (result && result.indexOf('Success') !== -1) {
             try {
                 var actualPath = result.replace("Success: Frame exported to ", "").trim();
+                
+                // Ожидаем завершения фоновой записи файла на диск (до 5 секунд)
+                var fs = require('fs');
+                var startWait = Date.now();
+                var fileReady = false;
+                while (Date.now() - startWait < 5000) {
+                    try {
+                        if (fs.existsSync(actualPath) && fs.statSync(actualPath).size > 0) {
+                            fileReady = true;
+                            break;
+                        }
+                    } catch (e) {
+                        // Игнорируем ошибки statSync во время записи
+                    }
+                    await new Promise(function (resolve) { setTimeout(resolve, 100); });
+                }
+
+                if (!fileReady) {
+                    throw new Error("Файл скриншота не появился на диске вовремя");
+                }
+
                 await sendTelegramPhoto(actualPath, "🖼 Текущий прогресс таймлайна After Effects");
             } catch (err) {
                 await sendTelegramMessage(`❌ Скриншот создан, но не отправлен: ${err.message}`);
@@ -586,26 +622,47 @@ async function sendTelegramMessage(text) {
     if (!telegramToken || !telegramChatId) return;
 
     var url = `https://api.telegram.org/bot${telegramToken}/sendMessage`;
+    var payload = {
+        chat_id: telegramChatId,
+        text: text,
+        parse_mode: 'Markdown',
+        reply_markup: {
+            keyboard: [
+                [{"text": "📊 Статус"}, {"text": "📸 Скриншот"}, {"text": "🧭 Навигация"}],
+                [{"text": "🎬 Рендер"}, {"text": "❓ Задать вопрос"}, {"text": "⚡️ Запустить промпт"}],
+                [{"text": "⚙️ Сменить модель"}, {"text": "📖 Инструкция"}, {"text": "🔄 Перезапуск"}]
+            ],
+            resize_keyboard: true
+        }
+    };
+
     try {
-        await fetch(url, {
+        var response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: telegramChatId,
-                text: text,
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    keyboard: [
-                        [{"text": "📊 Статус"}, {"text": "📸 Скриншот"}, {"text": "🧭 Навигация"}],
-                        [{"text": "🎬 Рендер"}, {"text": "❓ Задать вопрос"}, {"text": "⚡️ Запустить промпт"}],
-                        [{"text": "⚙️ Сменить модель"}, {"text": "📖 Инструкция"}, {"text": "🔄 Перезапуск"}]
-                    ],
-                    resize_keyboard: true
-                }
-            })
+            body: JSON.stringify(payload)
         });
+
+        if (!response.ok) {
+            var errData = await response.json();
+            logToConsole('TG Send message failed with Markdown: ' + (errData.description || response.statusText));
+            
+            // Fallback: send as plain text without Markdown parsing
+            delete payload.parse_mode;
+            var fallbackResponse = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!fallbackResponse.ok) {
+                var fallbackErrData = await fallbackResponse.json();
+                logToConsole('TG Send message failed with plain text: ' + (fallbackErrData.description || fallbackResponse.statusText));
+            } else {
+                logToConsole('TG Send message succeeded using plain text fallback.');
+            }
+        }
     } catch (err) {
-        logToConsole('TG Send message failed: ' + err.message);
+        logToConsole('TG Send message network failed: ' + err.message);
     }
 }
 
@@ -616,22 +673,28 @@ async function sendTelegramMessage(text) {
 function compressAndResizeImage(filePath, maxWidth) {
     return new Promise(function (resolve, reject) {
         var fs = require('fs');
+        var timeoutId = setTimeout(function () {
+            reject(new Error('Image compression timed out after 3500ms'));
+        }, 3500);
+
         try {
             if (!fs.existsSync(filePath)) {
+                clearTimeout(timeoutId);
                 return reject(new Error('File not found: ' + filePath));
             }
             var fileBuffer = fs.readFileSync(filePath);
             if (!fileBuffer || fileBuffer.length === 0) {
+                clearTimeout(timeoutId);
                 return reject(new Error('File is empty: ' + filePath));
             }
             
-            // Wrap Node.js Buffer in a browser-context Uint8Array for Blob compatibility
-            var uint8 = new Uint8Array(fileBuffer);
-            var blob = new Blob([uint8], { type: 'image/png' });
-            var objectUrl = URL.createObjectURL(blob);
+            // Use Data URL instead of object URL for extreme reliability across CEF/Chromium security contexts
+            var base64Data = fileBuffer.toString('base64');
+            var srcUrl = 'data:image/png;base64,' + base64Data;
             
             var img = new Image();
             img.onload = function () {
+                clearTimeout(timeoutId);
                 var width = img.width;
                 var height = img.height;
                 
@@ -652,12 +715,7 @@ function compressAndResizeImage(filePath, maxWidth) {
                 var ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // Revoke object URL after image data is fully drawn on canvas
-                URL.revokeObjectURL(objectUrl);
-                
                 try {
-                    // Convert canvas to base64 and manually decode to Uint8Array/Blob
-                    // to prevent any CEF canvas.toBlob compatibility issues.
                     var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                     var base64Part = dataUrl.split(',')[1];
                     var binaryString = atob(base64Part);
@@ -673,11 +731,12 @@ function compressAndResizeImage(filePath, maxWidth) {
                 }
             };
             img.onerror = function () {
-                URL.revokeObjectURL(objectUrl);
+                clearTimeout(timeoutId);
                 reject(new Error('Failed to load image into Image object'));
             };
-            img.src = objectUrl;
+            img.src = srcUrl;
         } catch (e) {
+            clearTimeout(timeoutId);
             reject(e);
         }
     });
@@ -954,20 +1013,41 @@ async function sendTelegramInlineKeyboard(text, inlineKeyboard) {
     if (!telegramToken || !telegramChatId) return;
 
     var url = "https://api.telegram.org/bot" + telegramToken + "/sendMessage";
+    var payload = {
+        chat_id: telegramChatId,
+        text: text,
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: inlineKeyboard
+        }
+    };
+
     try {
-        await fetch(url, {
+        var response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: telegramChatId,
-                text: text,
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: inlineKeyboard
-                }
-            })
+            body: JSON.stringify(payload)
         });
+
+        if (!response.ok) {
+            var errData = await response.json();
+            logToConsole('TG Send inline keyboard failed with Markdown: ' + (errData.description || response.statusText));
+
+            // Fallback: send as plain text without Markdown
+            delete payload.parse_mode;
+            var fallbackResponse = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!fallbackResponse.ok) {
+                var fallbackErrData = await fallbackResponse.json();
+                logToConsole('TG Send inline keyboard failed with plain text: ' + (fallbackErrData.description || fallbackResponse.statusText));
+            } else {
+                logToConsole('TG Send inline keyboard succeeded using plain text fallback.');
+            }
+        }
     } catch (err) {
-        logToConsole('TG Send inline keyboard failed: ' + err.message);
+        logToConsole('TG Send inline keyboard network failed: ' + err.message);
     }
 }

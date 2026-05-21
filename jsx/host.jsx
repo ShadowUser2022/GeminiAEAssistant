@@ -261,17 +261,21 @@
             }
             
             var currentTime = activeComp.time;
-            // Use OS temp folder to avoid spaces in path and permission restrictions
-            var tempFile = new File(Folder.temp.fsName + "/ae_telegram_screen.png");
-            if (tempFile.exists) {
-                tempFile.remove();
+            var targetFile;
+            if (outputPath) {
+                targetFile = new File(outputPath);
+            } else {
+                // Используем временную папку ОС и уникальный таймштамп, чтобы избежать ошибок кэша
+                var uniqueId = new Date().getTime();
+                targetFile = new File(Folder.temp.fsName + "/ae_telegram_screen_" + uniqueId + ".png");
             }
-            activeComp.saveFrameToPng(currentTime, tempFile);
             
-            if (!tempFile.exists) {
-                return "Error: Failed to write PNG frame file to: " + tempFile.fsName;
+            if (targetFile.exists) {
+                targetFile.remove();
             }
-            return "Success: Frame exported to " + tempFile.fsName;
+            activeComp.saveFrameToPng(currentTime, targetFile);
+            
+            return "Success: Frame exported to " + targetFile.fsName;
         } catch (e) {
             return "Error: " + e.toString();
         }
